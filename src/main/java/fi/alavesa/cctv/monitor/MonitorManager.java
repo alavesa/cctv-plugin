@@ -367,6 +367,7 @@ public final class MonitorManager {
                     log.log(Level.WARNING, "monitor " + m.id + ": could not hang a frame at " + front.toVector(), e);
                 }
                 // bezel: one per tile on walls, one body for a desk monitor
+                int ti = i, tj = j;
                 Location c = new Location(w, b[0] + 0.5, b[1] + 0.5, b[2] + 0.5);
                 m.bezels[t] = w.spawn(c, ItemDisplay.class, d -> {
                     d.setPersistent(false);
@@ -374,7 +375,7 @@ public final class MonitorManager {
                     d.setBillboard(Display.Billboard.FIXED);
                     ItemStack it = new ItemStack(Material.PAPER);
                     ItemMeta im = it.getItemMeta();
-                    im.setItemModel(m.type.bezelModel());
+                    im.setItemModel(m.type.bezelModel(ti, tj));
                     it.setItemMeta(im);
                     d.setItemStack(it);
                     d.setTransformation(new Transformation(new Vector3f(), rot, new Vector3f(1, 1, 1),
@@ -823,7 +824,7 @@ public final class MonitorManager {
                         tile[row + x] = img[sy * iw + sx];
                     }
                 }
-                Screen.stamp(tile, state, style);
+                Screen.stamp(tile, state, style, m.type.flat());
                 m.renderers[t].changed();
             }
         }

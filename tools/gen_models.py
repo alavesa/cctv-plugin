@@ -83,6 +83,35 @@ model('monitor_desk', RING + [box([0.5, 0.5, 4], [15.5, 15.5, 16], 'plastic'), b
       ['plastic', 'bezel'], BLOCK_DISPLAY)
 model('monitor_wall_item', RING + [box([1, 1, 15.5], [15, 15, 16], 'bezel')], ['bezel'], BLOCK_DISPLAY)
 
+# ---- flat-screen TVs -------------------------------------------------------------------------------------------------
+# One panel spans every tile of a wall screen, so a tile only draws the frame on the screen's OUTER edges:
+# tv_tile_<mask>, mask bits 1 top, 2 bottom, 4 left, 8 right (as seen from the front; 15 = a 1x1 screen).
+# Thin sides, slightly deeper chin with the power LED on the bottom-right tile.
+TV_SIDE, TV_CHIN, TV_DEPTH = 0.5, 1.0, 0.9
+def tv_frame(mask):
+    e = []
+    top, bottom, left, right = mask & 1, mask & 2, mask & 4, mask & 8
+    z0, z1 = 16, 16 + TV_DEPTH
+    if top: e.append(box([0, 16 - TV_SIDE, z0], [16, 16, z1], 'tvbezel'))
+    if bottom: e.append(box([0, 0, z0], [16, TV_CHIN, z1], 'tvbezel'))
+    y0, y1 = (TV_CHIN if bottom else 0), (16 - TV_SIDE if top else 16)
+    # front +Z: the viewer's right is model +X (verified on a 26.2 client)
+    if left: e.append(box([0, y0, z0], [TV_SIDE, y1, z1], 'tvbezel'))
+    if right: e.append(box([16 - TV_SIDE, y0, z0], [16, y1, z1], 'tvbezel'))
+    if bottom and right: e.append(box([14.3, 0.3, z1], [14.8, 0.6, z1 + 0.05], 'led'))
+    return e
+TEX.update({'tvbezel': 'cctv:item/tv_bezel', 'tvback': 'cctv:item/tv_back', 'led': 'cctv:item/tv_led'})
+for mask in range(16):
+    model('tv_tile_%d' % mask, tv_frame(mask) or [box([0, 0, 16], [0.01, 0.01, 16.01], 'tvbezel')],
+          ['tvbezel', 'led'], BLOCK_DISPLAY)
+# desk TV/monitor: slim panel (screen = the block's front face) on a neck and foot behind it
+TV_DESK = tv_frame(15) + [box([0, 0, 14.6], [16, 16, 16], 'tvback'),
+                          box([6.5, 0, 11], [9.5, 6, 14.6], 'tvback'),
+                          box([4, 0, 7], [12, 0.6, 15], 'tvbezel')]
+model('tv_desk', TV_DESK, ['tvbezel', 'tvback', 'led'], BLOCK_DISPLAY)
+model('tv_wall_item', tv_frame(15) + [box([0, 0, 15.2], [16, 16, 16], 'tvback')], ['tvbezel', 'tvback', 'led'],
+      BLOCK_DISPLAY)
+
 # ---- security terminal: console with a slanted screen and a keyboard, front toward +Z ---------------------------------
 model('terminal', [
     box([1, 0, 1], [15, 6, 15], 'plastic'),                       # desk unit

@@ -17,7 +17,7 @@ import org.bukkit.map.MinecraftFont;
  * <p>SENTINEL (read by cctv_text_fragment.glsl): a CCTV map has these four corner pixels, all "darkest" shade:
  * (0,0) magenta, (127,0) diamond, (0,127) gold, (127,127) pink. Natural terrain essentially never produces that exact
  * four-colour arrangement, and CCTV maps never leave their fixed, invisible frames. Pixel (1,0) is the state and
- * (2,0) the style; the shader also accepts the image flipped vertically, in case the texture rows are uploaded the
+ * (2,0) the style, (3,0) the panel (snow, shade 0 = flat LCD; anything else = CRT); the shader also accepts the image flipped vertically, in case the texture rows are uploaded the
  * other way round.
  */
 public final class Screen {
@@ -46,13 +46,18 @@ public final class Screen {
     private Screen() {
     }
 
-    public static void stamp(byte[] tile, State state, int style) {
+    /** Pixel (3,0) of a flat-panel screen; CRTs get {@link #CRT_PANEL}. */
+    private static final byte FLAT_PANEL = pixel(SNOW, 0);
+    private static final byte CRT_PANEL = pixel(SNOW, 2);
+
+    public static void stamp(byte[] tile, State state, int style, boolean flat) {
         tile[0] = pixel(MAGENTA, 3);
         tile[SIZE - 1] = pixel(DIAMOND, 3);
         tile[(SIZE - 1) * SIZE] = pixel(GOLD, 3);
         tile[(SIZE - 1) * SIZE + SIZE - 1] = pixel(PINK, 3);
         tile[1] = state.code;
         tile[2] = STYLE[Math.clamp(style, 0, 3)];
+        tile[3] = flat ? FLAT_PANEL : CRT_PANEL;
     }
 
     /** Fills a whole monitor image (w x h px) with a dark background and centred text lines. */

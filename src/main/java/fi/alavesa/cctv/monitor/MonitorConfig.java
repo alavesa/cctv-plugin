@@ -17,9 +17,20 @@ public final class MonitorConfig {
 
     public enum Mount { WALL, DESK }
 
-    /** A monitor type: its tile grid, how it mounts, and its models. */
+    /**
+     * A monitor type: its tile grid, how it mounts, and its models. {@code flat}: flat-panel (LCD) picture instead of
+     * the CRT look. {@code edges}: the bezel model is a prefix and each tile gets {@code <bezel>_<mask>} with only
+     * the screen's outer edges (mask bits 1 top, 2 bottom, 4 left, 8 right), so a wall reads as one panel.
+     */
     public record Type(String key, Component name, int width, int height, Mount mount, NamespacedKey bezelModel,
-                       NamespacedKey placerModel, int style) {
+                       NamespacedKey placerModel, int style, boolean flat, boolean edges) {
+
+        /** The bezel model of tile (i, j); i counts right and j up, as seen from the front. */
+        public NamespacedKey bezelModel(int i, int j) {
+            if (!edges) return bezelModel;
+            int mask = (j == height - 1 ? 1 : 0) | (j == 0 ? 2 : 0) | (i == 0 ? 4 : 0) | (i == width - 1 ? 8 : 0);
+            return new NamespacedKey(bezelModel.getNamespace(), bezelModel.getKey() + "_" + mask);
+        }
     }
 
     public final Map<String, Type> types;
@@ -81,10 +92,31 @@ public final class MonitorConfig {
                     log.warning("monitor type " + key + ": DESK monitors are 1x1; size ignored");
                     w = h = 1;
                 }
-                NamespacedKey bezel = key(s.getString("model.bezel", "cctv:monitor_tile"));
-                NamespacedKey placer = key(s.getString("model.placer", bezel == null ? "" : bezel.asString()));
+                int style = style(s.getString("style", "color"));
+                // default: flat panel, except green/amber phosphor screens, which only make sense as CRTs
+                // contains(path, true): only what the server's file says, not the jar's default config
+                boolean flat = !(s.contains("screen", true) ? s.getString("screen", "flat")
+                        : style == 1 || style == 2 ? "crt" : "flat").equalsIgnoreCase("crt");
+                String bezelName = s.getString("model.bezel", flat ? (mount == Mount.DESK ? "cctv:tv_desk"
+                        : "cctv:tv_tile") : mount == Mount.DESK ? "cctv:monitor_desk" : "cctv:monitor_tile");
+                String placerName = s.getString("model.placer", "");
+                boolean explicitEdges = s.contains("model.edges", true);
+                boolean edges = explicitEdges ? s.getBoolean("model.edges") : bezelName.equals("cctv:tv_tile");
+                if (flat && !explicitEdges) {
+                    // configs from 0.2.0 and older name the CRT models; a flat screen gets the TV ones
+                    if (bezelName.equals("cctv:monitor_tile")) {
+                        bezelName = "cctv:tv_tile";
+                        edges = true;
+                        if (placerName.equals("cctv:monitor_wall_item")) placerName = "cctv:tv_wall_item";
+                    } else if (bezelName.equals("cctv:monitor_desk")) {
+                        bezelName = "cctv:tv_desk";
+                    }
+                }
+                if (placerName.isBlank()) placerName = edges ? "cctv:tv_wall_item" : bezelName;
+                NamespacedKey bezel = key(bezelName);
+                NamespacedKey placer = key(placerName);
                 t.put(key, new Type(key, MiniMessage.miniMessage().deserialize(s.getString("name", key)), w, h, mount,
-                        bezel, placer == null ? bezel : placer, style(s.getString("style", "color"))));
+                        bezel, placer == null ? bezel : placer, style, flat, edges));
             }
         }
         types = Collections.unmodifiableMap(t);

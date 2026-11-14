@@ -61,6 +61,10 @@ def main():
     # monitors
     png(os.path.join(item, 'monitor_plastic.png'), 16, 16, noisy((48, 50, 52), 4, 11))
     png(os.path.join(item, 'monitor_bezel.png'), 16, 16, noisy((18, 18, 20), 3, 12))
+    # flat-screen TV: smooth near-black frame, a dark graphite back, a small power LED
+    png(os.path.join(item, 'tv_bezel.png'), 16, 16, [(14, 14, 16, 255)] * 256)
+    png(os.path.join(item, 'tv_back.png'), 16, 16, noisy((34, 35, 38), 2, 15))
+    png(os.path.join(item, 'tv_led.png'), 16, 16, [(60, 150, 255, 255)] * 256)
     # terminal
     scr = noisy((20, 40, 28), 6, 13)
     for y in range(2, 14, 3):

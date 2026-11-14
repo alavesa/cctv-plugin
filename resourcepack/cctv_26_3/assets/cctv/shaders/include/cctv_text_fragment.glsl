@@ -16,7 +16,8 @@
 // texture per map; verified in the 26.3 client). A map gets the CRT treatment only if its texture is 128x128 AND
 // its four corner pixels carry the CCTV sentinel colours (see Screen.java): magenta, diamond, gold and pink, all
 // in their darkest shade, in that order. Ordinary maps, held or hung, never carry that arrangement, so they draw
-// exactly as vanilla. Pixel (1,0) is the screen state and (2,0) the style. Everything except the LIVE picture is
+// exactly as vanilla. Pixel (1,0) is the screen state, (2,0) the style and (3,0) the panel: flat (LCD, the default
+// monitor) or CRT. Everything except the LIVE picture is
 // drawn here procedurally (colour bars, static, boot sweep, off), so those states cost the server nothing.
 // =====================================================================================================================
 
@@ -54,6 +55,12 @@ const float CRT_GAIN = 1.10;            // overall brightness; screens light the
 const float CRT_SOFT = 0.55;            // blend toward a 5-tap blur: smooths the server's dither pattern into tone
                                         // (0 = razor-sharp map pixels, 1 = fully blurred)
 const float CRT_BOOT_SECONDS = 2.0;     // length of one boot-sweep loop
+// ---- flat panel (LCD) tuning: nothing here varies across a tile, so a multi-tile wall reads as ONE screen ---------
+const float FLAT_SOFT = 0.40;           // dither smoothing, as CRT_SOFT
+const float FLAT_CONTRAST = 1.08;       // LCD punch around mid grey
+const float FLAT_GAIN = 1.04;
+const vec3  FLAT_NO_SIGNAL = vec3(0.04, 0.10, 0.42); // TV-style blue "no signal" background
+const float FLAT_BLOCK = 8.0;           // macroblock size of the digital break-up (STATIC), map pixels
 const vec3  CRT_GREEN = vec3(0.30, 1.00, 0.40);  // green phosphor (style 1, night-vision cameras)
 const vec3  CRT_AMBER = vec3(1.00, 0.70, 0.22);  // amber phosphor (style 2)
 
@@ -114,6 +121,55 @@ vec3 cctv_bars(float x) {
     return vec3(0.0, 0.0, 0.75);
 }
 
+vec3 cctv_style(vec3 col, ivec3 style) {
+    float luma = dot(col, vec3(0.299, 0.587, 0.114));
+    if (cctv_rgb(style, 0xDCDCDC)) return CRT_GREEN * luma * 1.25;
+    if (cctv_rgb(style, 0xB4B4B4)) return CRT_AMBER * luma * 1.25;
+    if (cctv_rgb(style, 0x878787)) return cctv_thermal(clamp(luma * 1.2, 0.0, 1.0));
+    return col;
+}
+
+vec3 cctv_soft(sampler2D tex, ivec2 p, float amount) {
+    vec3 img = texelFetch(tex, p, 0).rgb;
+    if (amount <= 0.0) return img;
+    vec3 blur = img * 0.4
+            + texelFetch(tex, clamp(p + ivec2(1, 0), ivec2(1), ivec2(126)), 0).rgb * 0.15
+            + texelFetch(tex, clamp(p - ivec2(1, 0), ivec2(1), ivec2(126)), 0).rgb * 0.15
+            + texelFetch(tex, clamp(p + ivec2(0, 1), ivec2(1), ivec2(126)), 0).rgb * 0.15
+            + texelFetch(tex, clamp(p - ivec2(0, 1), ivec2(1), ivec2(126)), 0).rgb * 0.15;
+    return mix(img, blur, amount);
+}
+
+// Flat panel: square pixels, no curve/scanlines/roll/vignette, self-lit, blue no-signal screen, digital break-up.
+vec4 cctv_flat(sampler2D tex, vec2 uv, ivec3 state, ivec3 style, float t) {
+    if (cctv_rgb(state, 0x111111)) return vec4(vec3(0.012, 0.012, 0.016), 1.0); // OFF: black glass
+    ivec2 p = clamp(ivec2(uv * 128.0), ivec2(1), ivec2(126));
+    vec3 img = cctv_soft(tex, p, FLAT_SOFT);
+    float textMask = step(0.6, dot(img, vec3(0.333)));
+    vec3 col;
+    if (cctv_rgb(state, 0xB4B4B4)) {
+        col = mix(FLAT_NO_SIGNAL, vec3(1.0), textMask);           // NO SIGNAL
+    } else if (cctv_rgb(state, 0x878787)) {
+        col = img;                                                  // OFFLINE: the server's text frame
+    } else if (cctv_rgb(state, 0x191919)) {
+        float phase = fract(t / CRT_BOOT_SECONDS);                  // BOOT: backlight up, then the picture
+        col = vec3(0.05, 0.05, 0.07) * smoothstep(0.0, 0.3, phase) + img * smoothstep(0.45, 0.8, phase);
+    } else if (cctv_rgb(state, 0xDCDCDC)) {
+        // STATIC: frozen macroblocks of the last picture, some smeared, some dropped to grey noise
+        ivec2 b = ivec2(floor(vec2(p) / FLAT_BLOCK));
+        float step_t = floor(t * 12.0);
+        float h = cctv_hash(vec2(b) + step_t * vec2(13.0, 7.0));
+        ivec2 q = clamp(b * int(FLAT_BLOCK) + ivec2(int(FLAT_BLOCK) / 2), ivec2(1), ivec2(126));
+        vec3 blk = texelFetch(tex, q, 0).rgb;
+        col = h < 0.35 ? blk : h < 0.55 ? vec3(cctv_hash(vec2(p) + step_t)) * 0.6 : img;
+    } else {
+        col = img;                                                  // LIVE
+    }
+    col = cctv_style(col, style);
+    col = (col - 0.5) * FLAT_CONTRAST + 0.5;
+    return vec4(clamp(col * FLAT_GAIN, 0.0, 1.0), 1.0);
+}
+
 vec4 cctv_crt(vec4 color, sampler2D tex, vec2 uv) {
     int row = cctv_screen_row(tex);
     if (row == 0) return color;
@@ -121,6 +177,7 @@ vec4 cctv_crt(vec4 color, sampler2D tex, vec2 uv) {
     ivec3 state = cctv_px(tex, 1, sy);
     ivec3 style = cctv_px(tex, 2, sy);
     float t = GameTime * 1200.0;
+    if (cctv_rgb(cctv_px(tex, 3, sy), 0xB4B4B4)) return cctv_flat(tex, uv, state, style, t);
 
     if (cctv_rgb(state, 0x111111)) {
         // OFF: dark glass with a faint diagonal reflection
@@ -132,15 +189,7 @@ vec4 cctv_crt(vec4 color, sampler2D tex, vec2 uv) {
     if (cu.x < 0.0 || cu.x > 1.0 || cu.y < 0.0 || cu.y > 1.0) return vec4(0.01, 0.01, 0.012, 1.0);
     // clamp away from the outermost ring of pixels: that is where the sentinel lives
     ivec2 p = clamp(ivec2(cu * 128.0), ivec2(1), ivec2(126));
-    vec3 img = texelFetch(tex, p, 0).rgb;
-    if (CRT_SOFT > 0.0) {
-        vec3 blur = img * 0.4
-                + texelFetch(tex, clamp(p + ivec2(1, 0), ivec2(1), ivec2(126)), 0).rgb * 0.15
-                + texelFetch(tex, clamp(p - ivec2(1, 0), ivec2(1), ivec2(126)), 0).rgb * 0.15
-                + texelFetch(tex, clamp(p + ivec2(0, 1), ivec2(1), ivec2(126)), 0).rgb * 0.15
-                + texelFetch(tex, clamp(p - ivec2(0, 1), ivec2(1), ivec2(126)), 0).rgb * 0.15;
-        img = mix(img, blur, CRT_SOFT);
-    }
+    vec3 img = cctv_soft(tex, p, CRT_SOFT);
     float n = cctv_hash(vec2(p) + fract(t * 37.0) * vec2(91.0, 57.0));
     float textMask = step(0.6, dot(img, vec3(0.333)));
     vec3 col;
@@ -164,10 +213,7 @@ vec4 cctv_crt(vec4 color, sampler2D tex, vec2 uv) {
         col = img; // LIVE
     }
 
-    float luma = dot(col, vec3(0.299, 0.587, 0.114));
-    if (cctv_rgb(style, 0xDCDCDC)) col = CRT_GREEN * luma * 1.25;
-    else if (cctv_rgb(style, 0xB4B4B4)) col = CRT_AMBER * luma * 1.25;
-    else if (cctv_rgb(style, 0x878787)) col = cctv_thermal(clamp(luma * 1.2, 0.0, 1.0));
+    col = cctv_style(col, style);
 
     float scan = 0.5 + 0.5 * cos(fract(cu.y * 128.0) * 6.2831853);
     col *= mix(1.0, scan, CRT_SCANLINE);

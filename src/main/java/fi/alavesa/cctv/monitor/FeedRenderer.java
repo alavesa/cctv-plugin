@@ -245,8 +245,17 @@ public final class FeedRenderer {
                     tb *= 0.95f;
                     continue;
                 }
+                double tOut = Math.min(tmx, Math.min(tmy, tmz)); // where the ray leaves this block
+                if (k == BlockLook.SHAPED) {
+                    if (!shaped(m, x, y, z, px, py, pz, axis, dx, dy, dz, t, tOut, out)) continue;
+                    break;
+                }
+                if (k == BlockLook.PLANT) {
+                    if (!plant(m, x, y, z, dx, dy, dz, t, tOut, out)) continue;
+                    break;
+                }
                 int face = axis == 1 ? (stepY > 0 ? 3 : 1) : axis == 0 ? 0 : 2;
-                shade(m, face, axis, x, y, z, px, py, pz, dx, dy, dz, t, out);
+                shade(m, face, axis, x, y, z, px, py, pz, dx, dy, dz, t, false, out);
                 break;
             }
             out[0] = out[0] * tr + wr;
@@ -259,8 +268,88 @@ public final class FeedRenderer {
             }
         }
 
+        /** A non-full block: the nearest of its boxes between entering (t0) and leaving (t1) the block, if any. */
+        private boolean shaped(Material m, int x, int y, int z, int px, int py, int pz, int enterAxis, double dx,
+                               double dy, double dz, double t0, double t1, float[] out) {
+            ChunkSnapshot c = chunk(x, z);
+            if (c == null) return false;
+            double[][] boxes = Shapes.boxes(c.getBlockData(x & 15, y, z & 15));
+            double ox = p.x - x, oy = p.y - y, oz = p.z - z;
+            double best = t1;
+            int bestAxis = -1;
+            for (double[] b : boxes) {
+                double a0 = t0, a1 = best;
+                int axis = -1;
+                boolean miss = false;
+                for (int i = 0; i < 3 && !miss; i++) {
+                    double o = i == 0 ? ox : i == 1 ? oy : oz, d = i == 0 ? dx : i == 1 ? dy : dz;
+                    if (Math.abs(d) < 1e-12) {
+                        miss = o < b[i] || o > b[i + 3];
+                        continue;
+                    }
+                    double e0 = (b[i] - o) / d, e1 = (b[i + 3] - o) / d;
+                    if (e0 > e1) {
+                        double s = e0;
+                        e0 = e1;
+                        e1 = s;
+                    }
+                    if (e0 >= a0) {
+                        a0 = e0;
+                        axis = i;
+                    }
+                    a1 = Math.min(a1, e1);
+                    miss = a0 > a1;
+                }
+                if (miss || a0 >= best) continue;
+                if (axis < 0) axis = enterAxis; // the box face is on the block boundary the ray came through
+                best = a0;
+                bestAxis = axis;
+            }
+            if (bestAxis < 0) return false;
+            double d = bestAxis == 0 ? dx : bestAxis == 1 ? dy : dz;
+            int face = bestAxis == 1 ? (d > 0 ? 3 : 1) : bestAxis == 0 ? 0 : 2;
+            // a face on the block's boundary is lit like a full block; an inner face (slab top, step) by the block itself
+            boolean interior = best > t0 + 1e-6;
+            shade(m, face, bestAxis, x, y, z, interior ? x : px, interior ? y : py, interior ? z : pz, dx, dy, dz,
+                    best, interior, out);
+            return true;
+        }
+
+        /** Plants: two crossed planes of leaves, about half covered, in the block's colour. */
+        private boolean plant(Material m, int x, int y, int z, double dx, double dy, double dz, double t0,
+                              double t1, float[] out) {
+            double ox = p.x - x, oy = p.y - y, oz = p.z - z;
+            double best = t1;
+            double bu = 0, bv = 0;
+            for (int plane = 0; plane < 2; plane++) {
+                // plane 0: lx = lz, plane 1: lx + lz = 1
+                double den = plane == 0 ? dx - dz : dx + dz;
+                if (Math.abs(den) < 1e-9) continue;
+                double tt = plane == 0 ? (oz - ox) / den : (1 - ox - oz) / den;
+                if (tt < t0 || tt >= best) continue;
+                double lx = ox + dx * tt, ly = oy + dy * tt;
+                if (lx < 0 || lx > 1 || ly < 0 || ly > 0.95) continue;
+                if (hash(x * 73856093L ^ z * 83492791L ^ y * 19349663L ^ plane, (int) (lx * 16), (int) (ly * 16))
+                        > 0.55f) continue;
+                best = tt;
+                bu = lx;
+                bv = ly;
+            }
+            if (best >= t1) return false;
+            int rgb = look.rgb(m, 0);
+            float n = hash(x * 31L + z * 17L, (int) (bu * 16), (int) (bv * 16)) - 0.5f;
+            float l = light(x, y, z);
+            float s = FACE_X * (AMBIENT + (1 - AMBIENT) * l) * (1 + n * 0.25f) * (0.75f + 0.25f * (float) bv);
+            float fog = fog(best);
+            horizon(sky);
+            out[0] = (rgb >> 16 & 255) / 255f * s * (1 - fog) + sky[0] * fog;
+            out[1] = (rgb >> 8 & 255) / 255f * s * (1 - fog) + sky[1] * fog;
+            out[2] = (rgb & 255) / 255f * s * (1 - fog) + sky[2] * fog;
+            return true;
+        }
+
         private void shade(Material m, int face, int axis, int x, int y, int z, int px, int py, int pz,
-                           double dx, double dy, double dz, double t, float[] out) {
+                           double dx, double dy, double dz, double t, boolean interior, float[] out) {
             int rgb = look.rgb(m, face);
             float r = (rgb >> 16 & 255) / 255f, g = (rgb >> 8 & 255) / 255f, b = (rgb & 255) / 255f;
             // hit point on the face, in-face coordinates u, v (0..1)
@@ -293,8 +382,8 @@ public final class FeedRenderer {
                 case 2 -> FACE_Z;
                 default -> FACE_BOTTOM;
             };
-            float ao = ao(px, py, pz, ua, va, u, v);
-            float l = light(px, py, pz);
+            float ao = interior ? 1 : ao(px, py, pz, ua, va, u, v);
+            float l = interior ? Math.max(light(x, y, z), light(px, py, pz)) : light(px, py, pz);
             float s = faceF * ao * (AMBIENT + (1 - AMBIENT) * l) * grain;
             float fog = fog(t);
             horizon(sky);

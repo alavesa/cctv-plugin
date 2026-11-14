@@ -36,6 +36,12 @@ public final class MonitorListener implements Listener {
         this.messages = messages;
     }
 
+    /** Arm swings (attacks, using items) animate the player's figure on monitor feeds. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onSwing(io.papermc.paper.event.player.PlayerArmSwingEvent e) {
+        if (e.getHand() == EquipmentSlot.HAND) monitors.swung(e.getPlayer().getUniqueId());
+    }
+
     @EventHandler
     public void onChunkLoad(ChunkLoadEvent e) {
         monitors.onChunkLoad(e.getChunk());

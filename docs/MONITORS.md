@@ -16,8 +16,13 @@ does instead:
    - see-through water with depth, tinted glass.
 
    The result is **dithered** into the 248 map colours, so gradients and tints are smooth instead of four flat steps.
+   Non-full blocks have their shapes (slabs, stairs, fences, walls, doors, trapdoors, carpets, snow layers, chests,
+   signs, ...; monitor/Shapes.java), and flowers, grass and crops are sparse crossed leaves instead of cubes.
    Players, Mannequins and FancyNpcs body doubles are drawn as the player model (head, body, arms, legs, turned to
-   the body yaw) in their real skin and armour colours. Skins come from the profile's `textures` property (Mojang,
+   the body yaw) in their real skin and armour colours, and animated like the client does: legs and arms swing with
+   the walking speed, the head turns and tilts where they look, sneaking leans, an attack swings the arm, swimming /
+   gliding / sleeping lie flat, a hurt figure flashes red. (At the feed's 2 fps a walk shows as changing strides,
+   not smooth motion.) Skins come from the profile's `textures` property (Mojang,
    or SkinsRestorer & co.) and are downloaded once from textures.minecraft.net; until then, and on offline-mode
    servers without a skin plugin, a placeholder person. Other mobs are shaded boxes by category. No name tags or
    particles.

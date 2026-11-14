@@ -17,7 +17,14 @@ import org.bukkit.Material;
  */
 final class BlockLook {
 
-    static final byte OPAQUE = 0, AIR = 1, GLASS = 2, WATER = 3;
+    /** SHAPED: a non-full block drawn from {@link Shapes}; PLANT: flowers, grass, crops (a sparse cross of leaves) */
+    static final byte OPAQUE = 0, AIR = 1, GLASS = 2, WATER = 3, SHAPED = 4, PLANT = 5;
+
+    private static final String[] PLANT_NAMES = {"GRASS", "FERN", "FLOWER", "TULIP", "ORCHID", "ALLIUM", "BLUET",
+            "DAISY", "POPPY", "DANDELION", "LILY_OF", "ROSE", "PEONY", "LILAC", "SAPLING", "BUSH", "WHEAT", "CARROTS",
+            "POTATOES", "BEETROOTS", "VINE", "ROOTS", "KELP", "SEAGRASS", "SUGAR_CANE", "MUSHROOM", "FUNGUS", "SPROUTS",
+            "SWEET_BERRY", "PETALS", "LEAF_LITTER", "PROPAGULE", "DRIPLEAF", "COBWEB", "NETHER_WART", "STEM",
+            "PITCHER", "TORCHFLOWER", "EYEBLOSSOM", "BAMBOO_SAPLING", "FIRE", "CORAL"};
 
     private final int[] top, side, bottom;
     private final float[] contrast;
@@ -67,7 +74,26 @@ final class BlockLook {
         } catch (IOException | RuntimeException e) {
             log.warning("block_colors.tsv could not be read (" + e + "); monitors use map colours");
         }
+        // non-full blocks: real shapes (slabs, stairs, fences, ...), plants as sparse crosses, the rest see-through
+        for (Material m : all) {
+            int i = m.ordinal();
+            if (kind[i] != OPAQUE) continue;
+            org.bukkit.block.data.BlockData bd;
+            try {
+                bd = m.createBlockData();
+            } catch (RuntimeException e) {
+                continue;
+            }
+            if (Shapes.isShaped(m, bd)) kind[i] = SHAPED;
+            else if (!m.isSolid()) kind[i] = plant(m.name()) ? PLANT : AIR;
+        }
         log.fine("block colours: " + loaded + " from textures");
+    }
+
+    private static boolean plant(String n) {
+        if (n.contains("CORAL_BLOCK")) return false;
+        for (String p : PLANT_NAMES) if (n.contains(p)) return true;
+        return false;
     }
 
     /** face: 0 x-side, 1 top, 2 z-side, 3 bottom */

@@ -102,6 +102,10 @@ public final class MonitorManager {
     private PlacementHook viewStarter = (p, cameraId) -> false;
     private java.util.function.Supplier<List<Map.Entry<Player, Location>>> npcBodies = List::of;
     private final Skins skins;
+    /** walking animation per figure: last x, z, tick sampled, limb position, limb amount */
+    private final Map<UUID, double[]> walk = new HashMap<>();
+    /** tick of each player's last arm swing */
+    private final Map<UUID, Long> swings = new HashMap<>();
 
     /** How a monitor click opens a feed (the view manager), kept as a hook to avoid a package cycle. */
     @FunctionalInterface
@@ -794,12 +798,12 @@ public final class MonitorManager {
             if (e instanceof LivingEntity le && le.isInvisible()) continue;
             if (e instanceof Player pl) {
                 out.add(figure(pl.getLocation(), pl.getBodyYaw(), skins.of(pl.getPlayerProfile().getProperties()),
-                        pl.getEquipment()));
+                        pl.getEquipment(), anim(pl)));
                 continue;
             }
             if (e instanceof Mannequin mq) {
                 out.add(figure(mq.getLocation(), mq.getBodyYaw(), skins.of(mq.getProfile()),
-                        mq.getEquipment()));
+                        mq.getEquipment(), anim(mq)));
                 continue;
             }
             int base; // silhouette colour by category
@@ -817,13 +821,63 @@ public final class MonitorManager {
             Location at = b.getValue();
             if (at.getWorld() != w || at.distanceSquared(eye) > d * d) continue;
             Player pl = b.getKey();
-            out.add(figure(at, at.getYaw(), skins.of(pl.getPlayerProfile().getProperties()), pl.getEquipment()));
+            // the NPC stands still, looking where the viewer looked when they sat down
+            out.add(figure(at, at.getYaw(), skins.of(pl.getPlayerProfile().getProperties()), pl.getEquipment(),
+                    new Figure.Anim(0, at.getPitch(), 0, 0, false, -1, Figure.Lying.NO, false, tick)));
         }
         return out.toArray(new FeedRenderer.Ent[0]);
     }
 
+    /** A player's arm swing (main thread); its figures swing the right arm for the next few ticks. */
+    void swung(UUID player) {
+        swings.put(player, tick);
+    }
+
+    /** How a living figure is posed now: walking from how far it moved since the last sample, head, sneak, swing. */
+    private Figure.Anim anim(LivingEntity e) {
+        Location l = e.getLocation();
+        double[] w = walk.get(e.getUniqueId());
+        if (w == null) {
+            if (walk.size() > 1024) walk.clear();
+            w = new double[]{l.getX(), l.getZ(), tick, 0, 0};
+            walk.put(e.getUniqueId(), w);
+        } else if (tick > w[2]) {
+            double dist = Math.hypot(l.getX() - w[0], l.getZ() - w[1]);
+            double ticks = tick - w[2];
+            // the client: limb amount follows 4x the speed in blocks/tick, the limb position advances by it each tick
+            double speed = dist / ticks;
+            w[4] = Math.min(1, speed * 4);
+            w[3] += dist * 4;
+            w[0] = l.getX();
+            w[1] = l.getZ();
+            w[2] = tick;
+        }
+        float bodyYaw = e.getBodyYaw();
+        float headYaw = (float) Math.clamp(wrap(l.getYaw() - bodyYaw), -75, 75);
+        org.bukkit.entity.Pose pose = e.getPose();
+        Figure.Lying lying = switch (pose) {
+            case SWIMMING, FALL_FLYING, SPIN_ATTACK -> Figure.Lying.PRONE;
+            case SLEEPING, DYING -> Figure.Lying.ON_BACK;
+            default -> Figure.Lying.NO;
+        };
+        boolean sneaking = pose == org.bukkit.entity.Pose.SNEAKING || (e instanceof Player pl && pl.isSneaking());
+        Long sw = swings.get(e.getUniqueId());
+        float swing = sw != null && tick - sw < 6 ? (tick - sw) / 6f : -1;
+        boolean hurt = e.getNoDamageTicks() > e.getMaximumNoDamageTicks() / 2 && e.getLastDamage() > 0;
+        return new Figure.Anim(headYaw, l.getPitch(), (float) w[3], (float) w[4], sneaking, swing, lying, hurt,
+                tick + (e.getEntityId() * 37 % 100));
+    }
+
+    private static double wrap(double deg) {
+        deg %= 360;
+        if (deg > 180) deg -= 360;
+        if (deg < -180) deg += 360;
+        return deg;
+    }
+
     private static FeedRenderer.Ent figure(Location at, float bodyYaw, int[] skin,
-                                           org.bukkit.inventory.@org.jspecify.annotations.Nullable EntityEquipment eq) {
+                                           org.bukkit.inventory.@org.jspecify.annotations.Nullable EntityEquipment eq,
+                                           Figure.Anim anim) {
         int[] armour = new int[4];
         if (eq != null) {
             armour[0] = armourRgb(eq.getHelmet());
@@ -831,10 +885,8 @@ public final class MonitorManager {
             armour[2] = armourRgb(eq.getLeggings());
             armour[3] = armourRgb(eq.getBoots());
         }
-        Figure f = new Figure(at.getX(), at.getY(), at.getZ(), bodyYaw, skin, armour);
-        double r = Figure.RADIUS;
-        return new FeedRenderer.Ent(at.getX() - r, at.getY(), at.getZ() - r, at.getX() + r,
-                at.getY() + Figure.HEIGHT, at.getZ() + r, 0, f);
+        Figure f = new Figure(at.getX(), at.getY(), at.getZ(), bodyYaw, skin, armour, anim);
+        return new FeedRenderer.Ent(f.minX(), f.minY(), f.minZ(), f.maxX(), f.maxY(), f.maxZ(), 0, f);
     }
 
     /** Colour of a worn armour piece (leather: its dye), 0 for none or for things that aren't armour. */

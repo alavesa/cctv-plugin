@@ -10,8 +10,9 @@ normal player for anything permission- or clearance-related.
 
 - ✅ 26.2: plugin enables (it was red in 0.1.0: `Unsupported API version 26.3`), pack loads, mob backend gives the
   three looks, HUD + monitors + CRT work, FancyNpcs body double visible (FancyNpcs 2.12.1+383).
-- ✅ 0.2.0: monitor picture with real block colours and dithering; dolly zoom 1×/4×; example .bbmodel camera
-  (floor and wall mount) renders with the lens facing the authored way.
+- ✅ 0.2.0 (on both 26.2 and 26.3): monitor picture with real block colours and dithering; dolly zoom 1×/4×;
+  example .bbmodel camera (floor and wall mount) renders with the lens facing the authored way; FancyNpcs body
+  double. 26.3 uses the paper post-effect backend (log: `Post effects backend: paper`).
 - ☐ Your own .bbmodel camera: pan/tilt of the `head` bone, the `idle`/`move`/`alert` clips.
 - ☐ FancyNpcs body with a real (online) skin; punching it pulls the viewer out.
 

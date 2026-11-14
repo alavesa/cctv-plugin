@@ -1,0 +1,401 @@
+# CCTV configuration. /cctv reload re-reads this file. Camera records live in cameras.yml.
+
+storage:
+  # cameras.yml is written (asynchronously, atomically) at most this often when something changed
+  autosave-seconds: 5
+
+placement:
+  # gap between the clicked block face and the lens, blocks
+  offset: 0.3
+  # starting downward tilt per mount, degrees (positive = down)
+  default-pitch:
+    wall: 15
+    ceiling: 35
+    floor: 0
+  # floor/ceiling cameras face the way the placing player looks, snapped to this many degrees (0 = no snap)
+  yaw-snap: 15
+  # refuse to place a camera this close to another one, blocks
+  min-spacing: 0.6
+
+damage:
+  # whether players (with cctv.damage) can hurt cameras at all; the API can always damage them
+  players-can-damage: true
+  melee: 2.0
+  projectile: 4.0
+  # explosion damage at the centre, falling off linearly to 0 at the radius
+  explosion: 20.0
+  explosion-radius: 5.0
+  # below this fraction of max health the camera reports DAMAGED (still viewable, glitchier feed in later phases)
+  damaged-threshold: 0.5
+
+repair:
+  # right-click a camera holding this item (needs cctv.repair)
+  item: IRON_INGOT
+  # optional: also require this item_model on the repair item, e.g. "cctv:repair_kit". Empty = any item of that material
+  item-model: ""
+  amount: 5.0
+  consume: true
+
+ptz:
+  # motor step interval in ticks; the client interpolates between steps over the same number of ticks.
+  # 1 = smoothest for viewers (the view follows the motor), and only moving cameras cost anything
+  update-ticks: 1
+  # sound event played while a PTZ head turns (the resource pack defines cctv:camera.motor; empty = silent)
+  motor-sound: "cctv:camera.motor"
+  motor-volume: 0.6
+  motor-pitch: 1.0
+  # ticks between motor sound starts while moving (match it to the length of your motor sound)
+  motor-sound-interval: 10
+
+item:
+  # base material for placement items and display models. It must not be placeable as a block.
+  material: PAPER
+
+hitbox:
+  # interaction box centred on the lens, blocks
+  width: 0.5
+  height: 0.5
+
+view:
+  # ticks between spawning the camera anchor and attaching the view: the client must know the entity first
+  attach-delay-ticks: 3
+  # static burst when a feed starts or switches, ticks
+  transition-ticks: 8
+  # static when the player exits, ticks
+  exit-transition-ticks: 6
+  # "SIGNAL LOST" before the player is restored after the body was hurt or the camera died, ticks
+  signal-lost-ticks: 20
+  # a Mannequin with the player's skin stays where they started viewing; hurting it pulls them out
+  body-double: true
+  # after being pulled out, the player takes the damage the body took
+  forward-damage: true
+  # camera goes offline mid-view: switch (to the next working camera in the network) | exit
+  on-camera-lost: switch
+  # A/D (and Ctrl+A/D) skip cameras that are offline
+  switch-skips-offline: true
+  # how far ahead of the PTZ motor a held key aims, seconds of motor travel
+  ptz-lookahead-seconds: 0.15
+  # control help shown at the start of a feed, seconds
+  help-seconds: 4
+  # only send post effects to players whose client confirmed the CCTV pack loaded (otherwise HUD only)
+  require-pack-for-effects: true
+  sounds:
+    switch: "cctv:feed.switch"
+    lost: "cctv:signal.lost"
+
+hud:
+  # half width of the HUD box in font pixels (1 font px = 2 GUI px). 100 fits 16:9 at GUI scale 3-4;
+  # lower it if corners clip on narrow windows or large GUI scales
+  half-width: 100
+  date-format: "yyyy-MM-dd"
+  time-format: "HH:mm:ss"
+
+effects:
+  # auto (Paper Player.postEffects) | paper | command (/posteffect as console) | mob (vanilla creeper/spider/
+  # enderman spectator shaders, no pack needed) | none (HUD only)
+  backend: auto
+  # health fraction below which the feed shows signal_weak / signal_critical
+  weak-signal-below: 0.5
+  critical-signal-below: 0.25
+
+pack:
+  # http: built-in web server on pack.http.port | url: you host plugins/CCTV/cctv-pack.zip, set pack.url |
+  # none: you merged the CCTV pack into another pack (see docs/MERGE.md)
+  delivery: http
+  http:
+    port: 8164
+    bind: "0.0.0.0"
+    # host name clients use to download; empty = the address each player connected with
+    public-host: ""
+  url: ""
+  # kick players who decline the pack
+  required: false
+  prompt: "<gray>CCTV: camera models and camera-feed screen effects"
+  # delivery none only: count ANY successfully loaded pack as the CCTV pack (otherwise assumed always present)
+  trust-any-pack: false
+  # build the pack from this folder inside plugins/CCTV/ instead of the copy in the jar ("" = jar)
+  source-folder: ""
+
+monitors:
+  render:
+    # map pixels per rendered pixel: 1 = full 128 px per block (4x the CPU of 2), 2 = 64 px upscaled (default)
+    scale: 2
+    # frames per second per watched monitor (0.1 - 10); bandwidth is ~16 KB per tile per frame per watcher
+    fps: 2.0
+    # how far the camera "sees" for monitors, blocks
+    max-distance: 48
+    # a monitor renders only while a player is within this many blocks, in front of it
+    watch-radius: 16
+    # ... and can actually see it (one block ray-trace per player per monitor every 10 ticks)
+    watch-needs-line-of-sight: true
+    # main-thread time per tick for capturing chunk snapshots (all monitors together), milliseconds
+    ms-budget-per-tick: 2.0
+    # render threads
+    threads: 1
+    # chunk snapshots are reused this long (block changes in a chunk drop its snapshot early)
+    chunk-cache-seconds: 8
+    # send each new frame to watchers immediately (otherwise vanilla item-frame updates, every 10 ticks)
+    push-frames: true
+  # snapshot mode (and the governor's last level): one frame every this many seconds
+  snapshot-interval-seconds: 2.0
+  boot-seconds: 2.0
+  # static burst when a cycling monitor switches camera, ticks
+  switch-static-ticks: 10
+  default-cycle-seconds: 8
+  hum-sound: "cctv:monitor.hum"
+  # ticks between hum sounds while someone watches (0 = silent); match the length of your hum sound
+  hum-interval-ticks: 60
+  # TPS protection: above high-mspt the frame rate halves, then resolution halves, then snapshot mode
+  governor:
+    high-mspt: 45
+    low-mspt: 35
+  # Monitor types. mount: WALL (place on a wall, width x height tiles) | DESK (1x1, place on top of a block)
+  # style: color | green | amber | thermal (night-vision cameras show green, thermal cameras thermal, anyway)
+  types:
+    desk:
+      name: "<white>Desk Monitor"
+      mount: DESK
+      width: 1
+      height: 1
+      style: color
+      model: {bezel: "cctv:monitor_desk"}
+    wall:
+      name: "<white>Wall Monitor"
+      mount: WALL
+      width: 1
+      height: 1
+      style: color
+      model: {bezel: "cctv:monitor_tile", placer: "cctv:monitor_wall_item"}
+    wall_2x2:
+      name: "<white>Monitor Wall 2x2"
+      mount: WALL
+      width: 2
+      height: 2
+      style: color
+      model: {bezel: "cctv:monitor_tile", placer: "cctv:monitor_wall_item"}
+    wall_3x2:
+      name: "<white>Monitor Wall 3x2"
+      mount: WALL
+      width: 3
+      height: 2
+      style: color
+      model: {bezel: "cctv:monitor_tile", placer: "cctv:monitor_wall_item"}
+    green_crt:
+      name: "<green>Green CRT"
+      mount: DESK
+      width: 1
+      height: 1
+      style: green
+      model: {bezel: "cctv:monitor_desk"}
+
+terminals:
+  model: "cctv:terminal"
+  # clearance new terminals require (change per terminal with /cctv terminal clearance <id|here> <n>)
+  default-clearance: 0
+
+alerts:
+  # cameras that see a player inside a restricted zone of their network raise an alert
+  # (zones: /cctv zone pos1, /cctv zone pos2, /cctv zone create <name> <network>)
+  enabled: true
+  # how often zones are checked, ticks
+  interval-ticks: 10
+  # how far a camera can spot someone, blocks
+  range: 32
+  # the same camera / zone / player alerts again only after this long
+  cooldown-seconds: 15
+  # how long a camera stays in alert after the last sighting
+  alert-seconds: 10
+  sound: "cctv:alert"
+  # who is told: viewers of that network, plus everyone with cctv.alert.receive.
+  # never alerts on: cctv.alert.exempt, cctv.zone.exempt.<zone>, or when another plugin cancels CameraAlertEvent
+
+# Camera types. Every key is free to change; add as many types as you like.
+#   model.head    item model of the turning lens part (must exist in the resource pack)
+#   model.base    item model of the fixed bracket ("" = none)
+#   model.broken  head model while DESTROYED
+#   model.placer  placement item model (defaults to model.head)
+#   look          post-effect look while viewed: standard | night_vision | thermal
+#   fallback-anchor  mob used by the vanilla mob-shader fallback: creeper | spider | enderman | none
+types:
+  dome:
+    name: "<white>Dome Camera"
+    model: {head: "cctv:camera_dome_lens", base: "cctv:camera_dome_housing", broken: "cctv:camera_broken", placer: "cctv:camera_dome_item"}
+    ptz: false
+    fov: 80
+    pan: {min: -45, max: 45}
+    tilt: {min: -10, max: 50}
+    pan-speed: 30
+    zoom-levels: [1]
+    look: standard
+    fallback-anchor: none
+    max-health: 16
+    clearance: 0
+    model-scale: 1.0
+  bullet:
+    name: "<white>Bullet Camera"
+    model: {head: "cctv:camera_bullet", base: "cctv:camera_bullet_mount", broken: "cctv:camera_broken"}
+    ptz: false
+    fov: 60
+    pan: {min: -30, max: 30}
+    tilt: {min: -20, max: 40}
+    pan-speed: 30
+    zoom-levels: [1]
+    look: standard
+    fallback-anchor: none
+    max-health: 20
+    clearance: 0
+    model-scale: 1.0
+  ptz:
+    name: "<white>PTZ Camera"
+    model: {head: "cctv:camera_ptz_head", base: "cctv:camera_ptz_base", broken: "cctv:camera_broken", placer: "cctv:camera_ptz_item"}
+    ptz: true
+    fov: 70
+    pan: {min: -90, max: 90}
+    tilt: {min: -20, max: 60}
+    pan-speed: 40
+    zoom-levels: [1, 2, 4]
+    look: standard
+    fallback-anchor: none
+    max-health: 24
+    clearance: 0
+    model-scale: 1.0
+  night_vision:
+    name: "<green>Night Vision Camera"
+    model: {head: "cctv:camera_night_vision", base: "cctv:camera_bullet_mount", broken: "cctv:camera_broken"}
+    ptz: false
+    fov: 60
+    pan: {min: -30, max: 30}
+    tilt: {min: -20, max: 40}
+    pan-speed: 30
+    zoom-levels: [1, 2]
+    look: night_vision
+    fallback-anchor: creeper
+    max-health: 20
+    clearance: 0
+    model-scale: 1.0
+  thermal:
+    enabled: true
+    name: "<gold>Thermal Camera"
+    model: {head: "cctv:camera_thermal", base: "cctv:camera_bullet_mount", broken: "cctv:camera_broken"}
+    ptz: false
+    fov: 50
+    pan: {min: -30, max: 30}
+    tilt: {min: -20, max: 40}
+    pan-speed: 30
+    zoom-levels: [1, 2]
+    look: thermal
+    fallback-anchor: enderman
+    max-health: 20
+    clearance: 2
+    model-scale: 1.0
+
+# MiniMessage. <prefix> is replaced by messages.prefix. Placeholders are listed per message.
+messages:
+  prefix: "<dark_gray>[<aqua>CCTV</aqua>]</dark_gray> "
+  no-permission: "<prefix><red>You don't have permission to do that."
+  unknown-subcommand: "<prefix><red>Unknown sub-command <white><sub></white>. Try /cctv help"
+  usage: "<prefix><gray>Usage: <white><usage>"
+  bad-number: "<prefix><red>Not a valid value: <white><value>"
+  players-only: "<prefix><red>Only players can do that."
+  unknown-type: "<prefix><red>Unknown camera type <white><type></white>."
+  unknown-player: "<prefix><red>Player <white><player></white> is not online."
+  unknown-camera: "<prefix><red>No camera with id <white><id></white>."
+  need-id: "<prefix><red>Give a camera id, or look at a camera."
+  look-at-block: "<prefix><red>Look at the block face to mount the camera on."
+  place-blocked: "<prefix><red>There is no room for a camera there."
+  place-too-close: "<prefix><red>Too close to another camera."
+  create-cancelled: "<prefix><red>Another plugin cancelled the camera creation."
+  world-not-loaded: "<prefix><red>World <white><world></white> is not loaded."
+  placed: "<prefix><green>Camera <white><id></white> mounted (group <white><group></white>)."
+  picked-up: "<prefix><yellow>Camera <white><id></white> taken down."
+  given: "<prefix><green>Gave <white><amount>×<type></white> to <white><player></white>."
+  removed: "<prefix><yellow>Camera <white><id></white> removed."
+  list-header: "<prefix><gray><count> camera(s) in <white><group></white>, page <page>/<pages>:"
+  info: |-
+    <prefix><aqua><id></aqua> <white><name></white> <gray>[<group>] <type></gray> <yellow><state></yellow>
+    <gray>  health <white><health>/<max></white>  powered <white><powered></white>  enabled <white><enabled></white>  clearance <white><clearance></white>
+    <gray>  <world> <white><pos></white>  mount <white><mount></white>  facing <white><yaw>/<pitch></white>
+    <gray>  pan <white><pan></white> (<pan_min>..<pan_max>)  tilt <white><tilt></white> (<tilt_min>..<tilt_max>)  fov <white><fov></white>
+  hit-info: "<prefix><aqua><id></aqua> <white><name></white> <yellow><state></yellow> <gray><health>/<max>"
+  renamed: "<prefix><green><id> is now called <white><name></white>."
+  group-set: "<prefix><green><id> moved to group <white><group></white>."
+  teleported: "<prefix><green>Teleported to <white><id></white>."
+  teleport-failed: "<prefix><red>Teleport to <white><id></white> failed."
+  power-set: "<prefix><green><id> power <white><state></white>."
+  power-group: "<prefix><green>Group <white><group></white> power <white><state></white> (<count> changed)."
+  enable-set: "<prefix><green><id> enabled: <white><state></white>."
+  repaired: "<prefix><green><id> repaired to <white><health>/<max></white>."
+  repair-full: "<prefix><gray><id> is not damaged."
+  repair-cancelled: "<prefix><red>The repair was cancelled."
+  damaged: "<prefix><yellow><id> health <white><health>/<max></white>."
+  damage-cancelled: "<prefix><red>The damage was cancelled (or the camera is already destroyed)."
+  not-ptz: "<prefix><red><id> is not a PTZ camera. Use /cctv set <id> yaw|pitch to re-aim it."
+  aimed: "<prefix><green><id> turning to pan <white><pan></white>, tilt <white><tilt></white>."
+  value-set: "<prefix><green><id> <key> = <white><value></white>."
+  reloaded: "<prefix><green>Reloaded config (<count> cameras)."
+  help-header: "<prefix><gray>Commands:"
+  help-give: "<gray> /cctv give <type> [player] [amount] [group]"
+  help-create: "<gray> /cctv create <type> [group] [name...] <dark_gray>(on the block face you look at)"
+  help-remove: "<gray> /cctv remove [id]"
+  help-list: "<gray> /cctv list [group|*] [page]"
+  help-info: "<gray> /cctv info [id]"
+  help-rename: "<gray> /cctv rename <id> <name...>"
+  help-setgroup: "<gray> /cctv setgroup <id> <group>"
+  help-tp: "<gray> /cctv tp <id>"
+  help-power: "<gray> /cctv power <id|group:name> <on|off>"
+  help-enable: "<gray> /cctv enable <id> <on|off>"
+  help-repair: "<gray> /cctv repair [id] [amount]"
+  help-damage: "<gray> /cctv damage <id> <amount>"
+  help-aim: "<gray> /cctv aim <id> <pan> <tilt>"
+  help-set: "<gray> /cctv set <id> <fov|clearance|pan-min|pan-max|tilt-min|tilt-max|yaw|pitch|type> <value>"
+  help-view: "<gray> /cctv view <id> [player]"
+  help-exit: "<gray> /cctv exit [player]"
+  help-pack: "<gray> /cctv pack [player] <dark_gray>(status, or re-send to a player)"
+  help-monitor: "<gray> /cctv monitor <give|bind|cycle|quad|mode|power|remove|list|info> <dark_gray>(here = the monitor you look at)"
+  help-perf: "<gray> /cctv perf"
+  help-browse: "<gray> /cctv browse [player] <dark_gray>(camera browser)"
+  help-admin: "<gray> /cctv admin <dark_gray>(edit cameras, get placement items)"
+  help-terminal: "<gray> /cctv terminal <give|group|clearance|remove|list>"
+  help-zone: "<gray> /cctv zone <pos1|pos2|create|remove|list>"
+  help-reload: "<gray> /cctv reload"
+  alert: "<prefix><red><bold>ALERT</bold></red> <white><zone></white> <gray>- <white><player></white> seen by <white><id></white> (<name>, network <group>)"
+  terminal-place-top: "<prefix><red>Place the terminal on top of a block."
+  terminal-placed: "<prefix><green>Terminal <white><id></white> placed. Lock it to a network: <white>/cctv terminal group here <network></white>"
+  terminal-removed: "<prefix><yellow>Terminal <white><id></white> removed."
+  terminal-denied: "<prefix><red>ACCESS DENIED <gray>(terminal needs clearance <clearance>)"
+  terminal-list-header: "<prefix><gray><count> terminal(s):"
+  unknown-terminal: "<prefix><red>No terminal <white><id></white> (look at one and use 'here')."
+  zone-pos: "<prefix><gray>Corner <n> set to <white><pos></white>."
+  zone-need-selection: "<prefix><red>Set both corners first: /cctv zone pos1 and /cctv zone pos2 (same world)."
+  zone-created: "<prefix><green>Zone <white><name></white> is watched by network <white><group></white>."
+  zone-removed: "<prefix><yellow>Zone <white><name></white> removed."
+  zone-unknown: "<prefix><red>No zone <white><name></white>."
+  zone-list-header: "<prefix><gray><count> zone(s):"
+  perf-header: "<prefix><gray>Feed renderer:"
+  unknown-monitor-type: "<prefix><red>Unknown monitor type <white><type></white>."
+  unknown-monitor: "<prefix><red>No monitor with id <white><id></white>."
+  need-monitor: "<prefix><red>Give a monitor id, or look at a monitor and use 'here'."
+  monitor-placed: "<prefix><green>Monitor <white><id></white> placed. Bind it: <white>/cctv monitor bind here <camera></white>"
+  monitor-place-bad-face: "<prefix><red>Wall monitors go on the side of a block, desk monitors on top of one."
+  monitor-place-no-room: "<prefix><red>There is no room for the monitor there."
+  monitor-place-needs-wall: "<prefix><red>Every tile of a wall monitor needs a solid block behind it."
+  monitor-place-occupied: "<prefix><red>Another monitor is in the way."
+  monitor-place-unknown-type: "<prefix><red>That monitor type no longer exists."
+  monitor-removed: "<prefix><yellow>Monitor <white><id></white> removed."
+  monitor-bound: "<prefix><green><id> now shows <white><cameras></white>."
+  monitor-off: "<prefix><gray><id> is switched off."
+  monitor-unbound: "<prefix><gray><id> isn't connected to a camera."
+  monitor-list-header: "<prefix><gray><count> monitor(s):"
+  monitor-info: "<prefix><aqua><id></aqua> <gray><type> <size>, mode <white><mode></white>, powered <white><powered></white>, cameras <white><cameras></white>"
+  view-offline: "<prefix><red><state> <gray>(<id>)"
+  view-denied: "<prefix><red>ACCESS DENIED <gray>(<id> needs clearance <clearance>)"
+  view-not-now: "<prefix><red>You can't view cameras right now."
+  view-no-pack: "<prefix><yellow>The CCTV resource pack isn't loaded, so the feed shows without screen effects."
+  view-no-other: "<prefix><gray>No other camera available in this network."
+  view-switched-lost: "<prefix><yellow><id> lost signal, switched to <white><to></white>."
+  view-restored: "<prefix><yellow>You were returned from a camera feed after a restart."
+  view-started: "<prefix><green><player> is now viewing <white><id></white>."
+  view-not-viewing: "<prefix><gray><player> is not viewing a camera."
+  pack-info: "<prefix><gray>pack sha1 <white><sha1></white>, effects backend <white><backend></white>, viewers <white><viewers></white>"
+  pack-player: "<gray>  <player>: <white><status></white> (effects <loaded>)"
+  pack-sent: "<prefix><green>Pack sent to <white><player></white>."

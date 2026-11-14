@@ -1,0 +1,104 @@
+name: CCTV
+version: '${version}'
+main: fi.alavesa.cctv.CctvPlugin
+api-version: '26.3'
+description: Placeable CCTV cameras, full-screen camera view and live monitors for vanilla clients
+author: Piia Alavesa
+website: https://github.com/alavesa
+
+permissions:
+  cctv.admin:
+    description: Everything
+    default: op
+    children:
+      cctv.command.*: true
+      cctv.place: true
+      cctv.pickup: true
+      cctv.repair: true
+      cctv.view: true
+      cctv.clearance.all: true
+      cctv.monitor.place: true
+      cctv.monitor.pickup: true
+      cctv.monitor.use: true
+      cctv.terminal.place: true
+      cctv.terminal.pickup: true
+      cctv.terminal.use: true
+      cctv.alert.receive: true
+  cctv.command.*:
+    description: All /cctv sub-commands
+    default: op
+    children:
+      cctv.command.give: true
+      cctv.command.create: true
+      cctv.command.remove: true
+      cctv.command.list: true
+      cctv.command.info: true
+      cctv.command.rename: true
+      cctv.command.setgroup: true
+      cctv.command.tp: true
+      cctv.command.power: true
+      cctv.command.enable: true
+      cctv.command.repair: true
+      cctv.command.damage: true
+      cctv.command.aim: true
+      cctv.command.set: true
+      cctv.command.view: true
+      cctv.command.exit: true
+      cctv.command.pack: true
+      cctv.command.monitor: true
+      cctv.command.perf: true
+      cctv.command.browse: true
+      cctv.command.admin: true
+      cctv.command.terminal: true
+      cctv.command.zone: true
+      cctv.command.reload: true
+  cctv.command.give: {default: op, description: /cctv give}
+  cctv.command.create: {default: op, description: /cctv create}
+  cctv.command.remove: {default: op, description: /cctv remove}
+  cctv.command.list: {default: op, description: /cctv list}
+  cctv.command.info: {default: op, description: "/cctv info, and status on right-clicking a camera"}
+  cctv.command.rename: {default: op, description: /cctv rename}
+  cctv.command.setgroup: {default: op, description: /cctv setgroup}
+  cctv.command.tp: {default: op, description: /cctv tp}
+  cctv.command.power: {default: op, description: /cctv power}
+  cctv.command.enable: {default: op, description: /cctv enable}
+  cctv.command.repair: {default: op, description: /cctv repair}
+  cctv.command.damage: {default: op, description: /cctv damage}
+  cctv.command.aim: {default: op, description: /cctv aim}
+  cctv.command.set: {default: op, description: /cctv set}
+  cctv.command.view: {default: op, description: "/cctv view: open a camera feed for yourself or another player"}
+  cctv.command.exit: {default: op, description: "/cctv exit: end a camera feed"}
+  cctv.command.pack: {default: op, description: "/cctv pack: pack status per player, re-send the pack"}
+  cctv.command.monitor: {default: op, description: "/cctv monitor: give, bind, cycle, quad, mode, power, remove"}
+  cctv.command.perf: {default: op, description: "/cctv perf: feed renderer cost per monitor"}
+  cctv.command.browse: {default: op, description: "/cctv browse: the camera browser anywhere (terminals don't need this)"}
+  cctv.command.admin: {default: op, description: "/cctv admin: edit cameras in a GUI, get placement items; open menus for others"}
+  cctv.command.terminal: {default: op, description: "/cctv terminal: give, lock to a network, set clearance, remove"}
+  cctv.command.zone: {default: op, description: "/cctv zone: restricted zones for alerts"}
+  cctv.command.reload: {default: op, description: /cctv reload}
+  cctv.terminal.place: {default: op, description: Place security terminals}
+  cctv.terminal.pickup: {default: op, description: Sneak-left-click a terminal to take it down}
+  cctv.terminal.use: {default: true, description: Use security terminals (their clearance is checked too)}
+  cctv.alert.receive: {default: op, description: Receive security alerts in chat without viewing a camera}
+  cctv.alert.exempt: {default: false, description: Never trigger zone alerts}
+  cctv.monitor.place: {default: op, description: Place monitors with a monitor item}
+  cctv.monitor.pickup: {default: op, description: "Sneak-hit a monitor (or break its wall) to take it down"}
+  cctv.monitor.use: {default: true, description: Click a monitor to open the camera it shows}
+  cctv.place:
+    description: Mount cameras with a placement item
+    default: op
+  cctv.pickup:
+    description: Sneak-hit a camera to take it down as an item
+    default: op
+  cctv.repair:
+    description: Repair cameras with the repair item
+    default: true
+  cctv.damage:
+    description: Damage cameras by hitting or shooting them
+    default: true
+  cctv.view:
+    description: View camera feeds (clearance is checked separately)
+    default: true
+  cctv.clearance.all:
+    description: Bypass every camera clearance level
+    default: op

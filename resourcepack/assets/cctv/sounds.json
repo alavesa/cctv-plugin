@@ -1,0 +1,56 @@
+{
+  "camera.motor": {
+    "sounds": [
+      {
+        "name": "cctv:camera/motor",
+        "attenuation_distance": 8
+      }
+    ],
+    "subtitle": "subtitles.cctv.camera.motor"
+  },
+  "feed.switch": {
+    "sounds": [
+      {
+        "name": "cctv:feed/switch",
+        "attenuation_distance": 16
+      }
+    ],
+    "subtitle": "subtitles.cctv.feed.switch"
+  },
+  "monitor.hum": {
+    "sounds": [
+      {
+        "name": "cctv:monitor/hum",
+        "attenuation_distance": 6
+      }
+    ],
+    "subtitle": "subtitles.cctv.monitor.hum"
+  },
+  "power.off": {
+    "sounds": [
+      {
+        "name": "cctv:power/off",
+        "attenuation_distance": 12
+      }
+    ],
+    "subtitle": "subtitles.cctv.power.off"
+  },
+  "signal.lost": {
+    "sounds": [
+      {
+        "name": "cctv:signal/lost",
+        "attenuation_distance": 16
+      }
+    ],
+    "subtitle": "subtitles.cctv.signal.lost"
+  },
+  "alert": {
+    "sounds": [
+      {
+        "name": "cctv:alert/alert",
+        "attenuation_distance": 24
+      }
+    ],
+    "subtitle": "subtitles.cctv.alert"
+  }
+}

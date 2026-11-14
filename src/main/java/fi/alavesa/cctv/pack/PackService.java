@@ -50,7 +50,12 @@ public final class PackService implements Listener {
     private PackBuilder.@Nullable Built built;
     private @Nullable PackHttpServer http;
 
-    public PackService(Logger log, File pluginJar, Path dataFolder, CctvConfig cfg) {
+    private final java.util.function.Supplier<Map<String, byte[]>> extra;
+
+    /** @param extra files generated at runtime (converted .bbmodel cameras) added to the pack */
+    public PackService(Logger log, File pluginJar, Path dataFolder, CctvConfig cfg,
+                       java.util.function.Supplier<Map<String, byte[]>> extra) {
+        this.extra = extra;
         this.log = log;
         this.pluginJar = pluginJar;
         this.dataFolder = dataFolder;
@@ -81,8 +86,8 @@ public final class PackService implements Listener {
     private void rebuild() {
         try {
             Path folder = cfg.packSourceFolder.isBlank() ? null : dataFolder.resolve(cfg.packSourceFolder);
-            built = folder != null && Files.isDirectory(folder) ? PackBuilder.fromFolder(folder)
-                    : PackBuilder.fromJar(pluginJar);
+            built = folder != null && Files.isDirectory(folder) ? PackBuilder.fromFolder(folder, extra.get())
+                    : PackBuilder.fromJar(pluginJar, extra.get());
             Files.createDirectories(dataFolder);
             Files.write(dataFolder.resolve("cctv-pack.zip"), built.zip());
             log.info("CCTV pack: " + built.files() + " files, " + built.zip().length / 1024 + " KB, sha1 " + built.sha1()

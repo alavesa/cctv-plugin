@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.logging.Logger;
 import net.kyori.adventure.key.Key;
-import org.bukkit.entity.Player;
 
 /** Effect ids shipped in the pack, and backend selection from config (effects.backend). */
 public final class PostEffects {
@@ -39,24 +38,21 @@ public final class PostEffects {
 
     public static PostEffectService create(String backend, Logger log) {
         return switch (backend) {
-            case "paper" -> new PaperPostEffects();
+            case "paper" -> {
+                if (PaperPostEffects.available()) yield new PaperPostEffects();
+                log.warning("effects.backend is paper but this server has no Player.postEffects() (Minecraft < 26.3); "
+                        + "using the mob backend");
+                yield new NoPostEffects("mob");
+            }
             case "command" -> new CommandPostEffects(shipped());
             case "mob" -> new NoPostEffects("mob");
             case "none" -> new NoPostEffects("none");
             default -> {
-                if (paperApiPresent()) yield new PaperPostEffects();
-                log.warning("Player.postEffects() is not available on this server; falling back to /posteffect");
-                yield new CommandPostEffects(shipped());
+                // auto: per-player post effects exist from 26.3; on 26.2 the spectated-mob shaders are the only way
+                if (PaperPostEffects.available()) yield new PaperPostEffects();
+                log.info("Player.postEffects() not available (Minecraft < 26.3): camera looks use the mob backend");
+                yield new NoPostEffects("mob");
             }
         };
-    }
-
-    private static boolean paperApiPresent() {
-        try {
-            Player.class.getMethod("postEffects");
-            return true;
-        } catch (NoSuchMethodException e) {
-            return false;
-        }
     }
 }

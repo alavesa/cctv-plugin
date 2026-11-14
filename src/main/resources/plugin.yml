@@ -1,10 +1,11 @@
 name: CCTV
 version: '${version}'
 main: fi.alavesa.cctv.CctvPlugin
-api-version: '26.3'
+api-version: '26.2'
 description: Placeable CCTV cameras, full-screen camera view and live monitors for vanilla clients
 author: Piia Alavesa
-website: https://github.com/alavesa
+website: https://github.com/alavesa/cctv-plugin
+softdepend: [FancyNpcs]
 
 permissions:
   cctv.admin:
@@ -51,6 +52,7 @@ permissions:
       cctv.command.admin: true
       cctv.command.terminal: true
       cctv.command.zone: true
+      cctv.command.zoom: true
       cctv.command.reload: true
   cctv.command.give: {default: op, description: /cctv give}
   cctv.command.create: {default: op, description: /cctv create}
@@ -75,6 +77,7 @@ permissions:
   cctv.command.admin: {default: op, description: "/cctv admin: edit cameras in a GUI, get placement items; open menus for others"}
   cctv.command.terminal: {default: op, description: "/cctv terminal: give, lock to a network, set clearance, remove"}
   cctv.command.zone: {default: op, description: "/cctv zone: restricted zones for alerts"}
+  cctv.command.zoom: {default: op, description: "/cctv zoom: set a viewer's zoom step"}
   cctv.command.reload: {default: op, description: /cctv reload}
   cctv.terminal.place: {default: op, description: Place security terminals}
   cctv.terminal.pickup: {default: op, description: Sneak-left-click a terminal to take it down}

@@ -1,7 +1,13 @@
 # CCTV
 
-CCTV cameras, full-screen camera view and live monitors for **Paper 26.3** with **vanilla clients** (plugin + server
-resource pack, no client mods). Built in phases; see [docs/PHASE1-ARCHITECTURE.md](docs/PHASE1-ARCHITECTURE.md).
+CCTV cameras, full-screen camera view and live monitors for **Paper 26.2 and 26.3** with **vanilla clients** (plugin +
+server resource pack, no client mods). One jar and one pack serve both versions.
+
+| | Minecraft 26.3 | Minecraft 26.2 |
+|---|---|---|
+| Camera look | per-player post effects: standard / night vision / thermal, plus zoom, static bursts, damaged-signal and SIGNAL LOST effects | the same three looks, through the spectated-mob shaders (the camera anchor is an invisible creeper / spider / enderman); no zoom effect, static bursts or signal effects (the HUD cards still show) |
+| HUD, monitors, CRT, GUIs, alerts | yes | yes |
+| Body double | FancyNpcs NPC if installed, else Mannequin | same | Built in phases; see [docs/PHASE1-ARCHITECTURE.md](docs/PHASE1-ARCHITECTURE.md).
 
 **Done so far (Phases 2–4):** camera objects, persistence, commands, events and API; the full-screen camera view
 with post effects, controls and the resource pack (camera models, post effects, sounds.json); the CCTV on-screen
@@ -67,7 +73,7 @@ and they take the damage.
 | A / D (hold) | pan | previous / next camera |
 | W / S (hold) | tilt | – |
 | Sprint + A / D | previous / next camera | previous / next camera |
-| Jump | zoom 1× / 2× / 4× (per type `zoom-levels`) | same, if the type has zoom levels |
+| Jump | zoom 1× / 2× / 4× (per type `zoom-levels`): the view moves forward along its line of sight, stopping before walls (`view.zoom`) | same, if the type has zoom levels |
 | Sneak | exit | exit |
 
 Why these keys: a spectating vanilla client only sends its movement keys (`PlayerInputEvent`). Hotbar scroll and

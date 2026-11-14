@@ -27,6 +27,7 @@ import org.jspecify.annotations.Nullable;
  * @param maxHealth     hit points; 0 health = DESTROYED
  * @param clearance     default clearance level needed to view (0 = anyone)
  * @param modelScale    uniform display scale for both parts
+ * @param bbmodel       a Blockbench file in plugins/CCTV/models/ that replaces the item models, or null
  */
 public record CameraType(
         String key,
@@ -47,5 +48,6 @@ public record CameraType(
         String fallbackAnchor,
         double maxHealth,
         int clearance,
-        float modelScale) {
+        float modelScale,
+        @Nullable String bbmodel) {
 }

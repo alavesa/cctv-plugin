@@ -4,10 +4,11 @@
 
 | What | Version | Why |
 |---|---|---|
-| Server | **Paper 26.3** (developed against build 249) | `Player.postEffects()`, `Mannequin`, dialogs, 26.3 map/shader behaviour |
+| Server | **Paper 26.2 or 26.3** (tested: 26.2 build 135, 26.3 build 249) | compiled against the 26.2 API; 26.3-only `Player.postEffects()` is used through reflection when present |
 | Java (server) | 25 or newer | Paper 26.3 minimum |
 | JDK (building) | 25 or newer | the build compiles with `--release 25` |
-| Clients | vanilla Java 26.3 + the CCTV resource pack | no mods |
+| Clients | vanilla Java 26.2 or 26.3 + the CCTV resource pack | no mods |
+| FancyNpcs (optional) | 2.12.x (tested 2.12.1+383) | player-model body double while viewing; without it a Mannequin is used |
 | Python 3 (optional) | any 3.10+ | the generator, merge and validation scripts in `tools/` |
 
 No other plugins are required. PacketEvents is not used.
@@ -21,7 +22,7 @@ No other plugins are required. PacketEvents is not used.
 The wrapper downloads Gradle 9.9.1 the first time. The result is `build/libs/cctv-<version>.jar`, which contains the
 resource pack sources (`resourcepack/`). The plugin zips those at startup.
 
-Dependency: `io.papermc.paper:paper-api:26.3.build.249-stable` (compile-only) from
+Dependency: `io.papermc.paper:paper-api:26.2.build.135-stable` (compile-only, the oldest supported version) from
 `https://repo.papermc.io/repository/maven-public/`. Paper's 26.x versions are `<mc>.build.<n>-<channel>`; there is
 no `-R0.1-SNAPSHOT` any more. To build against a newer Paper build, change the build number in `build.gradle.kts`.
 
@@ -51,7 +52,8 @@ reused forever.
 | `python3 tools/gen_placeholder_textures.py` | camera, monitor and terminal textures, GUI icons, GUI background, pack.png |
 | `python3 tools/gen_models.py` | every item model + item definition |
 | `python3 tools/gen_hud_font.py` | HUD font sheet `textures/font/osd.png`, `font/hud_*.json`, `font/space.json` |
-| `python3 tools/validate_shaders.py <glslang> <vanilla assets>,resourcepack/assets <files…> [-DIS_GUI]` | compiles shaders the way 26.3 does (include inlining) |
+| `python3 tools/port_262.py` | regenerates the 26.2 shaders (pack base) from the 26.3 sources in `resourcepack/cctv_26_3/`, plus pack.mcmeta and the mob-look overrides. **Run it after every shader edit.** |
+| `python3 tools/validate_shaders.py <glslang> <vanilla assets>,<pack assets> <files…> [-DIS_GUI]` | compiles shaders like the client (inlines `#include` / `#moj_import`) |
 
 `validate_shaders.py` needs the glslang binary (KhronosGroup/glslang releases, `macos-universal`/`linux`) and the
 vanilla shader includes. Extract `assets/minecraft/shaders/` from the 26.3 client jar (`.minecraft/versions/26.3/26.3.jar`)

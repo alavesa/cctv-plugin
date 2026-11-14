@@ -32,11 +32,13 @@ import org.jspecify.annotations.Nullable;
 final class CameraParts {
 
     private final Keys keys;
+    private final BbCameras bb;
     private CctvConfig cfg;
 
-    CameraParts(Keys keys, CctvConfig cfg) {
+    CameraParts(Keys keys, CctvConfig cfg, BbCameras bb) {
         this.keys = keys;
         this.cfg = cfg;
+        this.bb = bb;
     }
 
     void config(CctvConfig cfg) {
@@ -50,6 +52,12 @@ final class CameraParts {
         if (w == null || !w.isChunkLoaded(c.chunkX(), c.chunkZ())) return;
         // yaw/pitch 0: the display's own rotation stays neutral, everything is in the transformation
         Location at = new Location(w, c.x, c.y, c.z, 0f, 0f);
+        BbCameras.Model mdl = bb.model(c.type);
+        if (mdl != null) {
+            spawnBb(c, w, at, mdl);
+            spawnHitbox(c, w, at);
+            return;
+        }
         float s = c.type.modelScale();
         NamespacedKey baseModel = c.type.baseModel();
         if (baseModel != null) {
@@ -64,6 +72,10 @@ final class CameraParts {
             d.setItemStack(modelItem(headModel(c)));
             d.setTransformation(transform(Orientation.head(c.yaw(), c.pitch()), s));
         }).getUniqueId();
+        spawnHitbox(c, w, at);
+    }
+
+    private void spawnHitbox(Camera c, World w, Location at) {
         // an interaction box grows up from its location, so drop it by half its height to centre it on the lens
         Location hitAt = at.clone().subtract(0, cfg.hitboxHeight / 2.0, 0);
         c.hitEntity = w.spawn(hitAt, Interaction.class, i -> {
@@ -75,7 +87,50 @@ final class CameraParts {
         }).getUniqueId();
     }
 
+    /** One display per converted .bbmodel part, posed for the camera's current pan/tilt and animation. */
+    private void spawnBb(Camera c, World w, Location at, BbCameras.Model mdl) {
+        if (BbCameras.animated(mdl)) {
+            c.bbState = new BbCameras.State();
+            BbCameras.animate(mdl, c, c.bbState, 1);
+        }
+        Transformation[] pose = BbCameras.pose(mdl, c, c.bbState);
+        c.bbParts = new UUID[pose.length];
+        for (int i = 0; i < pose.length; i++) {
+            String model = mdl.rig().parts.get(i).itemModel.get("default");
+            Transformation t = pose[i] == null ? hidden() : pose[i];
+            c.bbParts[i] = w.spawn(at, ItemDisplay.class, d -> {
+                common(d, c, "head");
+                d.setItemStack(modelItem(NamespacedKey.fromString(model)));
+                d.setTransformation(t);
+            }).getUniqueId();
+        }
+    }
+
+    /** Re-poses the .bbmodel parts (pan/tilt and animation); the client interpolates over {@code ticks}. */
+    void updateBb(Camera c, int ticks) {
+        BbCameras.Model mdl = bb.model(c.type);
+        if (mdl == null || c.bbParts == null) return;
+        Transformation[] pose = BbCameras.pose(mdl, c, c.bbState);
+        for (int i = 0; i < c.bbParts.length && i < pose.length; i++) {
+            if (!(entity(c.bbParts[i]) instanceof ItemDisplay d)) continue;
+            d.setInterpolationDelay(0);
+            d.setInterpolationDuration(ticks);
+            d.setTransformation(pose[i] == null ? hidden() : pose[i]);
+        }
+    }
+
+    BbCameras bb() {
+        return bb;
+    }
+
+    private static Transformation hidden() {
+        return new Transformation(new Vector3f(), new Quaternionf(), new Vector3f(), new Quaternionf());
+    }
+
     void despawn(Camera c) {
+        if (c.bbParts != null) for (UUID u : c.bbParts) remove(u);
+        c.bbParts = null;
+        c.bbState = null;
         remove(c.baseEntity);
         remove(c.headEntity);
         remove(c.hitEntity);
@@ -86,6 +141,10 @@ final class CameraParts {
 
     /** Re-applies the head rotation; the client interpolates over {@code ticks}. */
     void updateHead(Camera c, int ticks) {
+        if (c.bbParts != null) {
+            updateBb(c, ticks);
+            return;
+        }
         if (!(entity(c.headEntity) instanceof ItemDisplay d)) return;
         d.setInterpolationDelay(0);
         d.setInterpolationDuration(ticks);
@@ -100,6 +159,10 @@ final class CameraParts {
     /** The live model entities (base, head); used to hide a camera's own housing from its viewers. */
     java.util.List<Entity> models(Camera c) {
         java.util.List<Entity> out = new java.util.ArrayList<>(2);
+        if (c.bbParts != null) for (UUID u : c.bbParts) {
+            Entity e = entity(u);
+            if (e != null) out.add(e);
+        }
         Entity b = entity(c.baseEntity), h = entity(c.headEntity);
         if (b != null) out.add(b);
         if (h != null) out.add(h);
@@ -107,6 +170,7 @@ final class CameraParts {
     }
 
     boolean owns(UUID entity, Camera c) {
+        if (c.bbParts != null) for (UUID u : c.bbParts) if (entity.equals(u)) return true;
         return entity.equals(c.baseEntity) || entity.equals(c.headEntity) || entity.equals(c.hitEntity);
     }
 

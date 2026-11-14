@@ -52,6 +52,9 @@ public final class Camera implements CameraView {
     @Nullable UUID baseEntity;
     @Nullable UUID headEntity;
     @Nullable UUID hitEntity;
+    /** display per part when the type uses a .bbmodel (then base/head entities are unused) */
+    @Nullable UUID[] bbParts;
+    BbCameras.@Nullable State bbState;
 
     Camera(String id, String typeKey, CameraType type, String world, double x, double y, double z, Mount mount,
            float baseYaw, float basePitch) {
@@ -153,6 +156,6 @@ public final class Camera implements CameraView {
     }
 
     boolean spawned() {
-        return headEntity != null;
+        return headEntity != null || bbParts != null;
     }
 }

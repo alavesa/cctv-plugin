@@ -50,6 +50,7 @@ public final class CameraManager implements CctvApi {
     private final Keys keys;
     private final CameraStore store;
     private final CameraParts parts;
+    private final BbCameras bb;
     private final CameraItems items;
     private final PtzMotor motor;
     private final Map<String, Camera> byId = new LinkedHashMap<>();
@@ -67,7 +68,8 @@ public final class CameraManager implements CctvApi {
         this.cfg = cfg;
         this.keys = new Keys(plugin);
         this.store = new CameraStore(plugin.getDataFolder().toPath().resolve("cameras.yml"), log);
-        this.parts = new CameraParts(keys, cfg);
+        this.bb = new BbCameras(plugin.getDataFolder(), log);
+        this.parts = new CameraParts(keys, cfg, bb);
         this.items = new CameraItems(keys, cfg);
         this.motor = new PtzMotor(this, parts);
     }
@@ -75,6 +77,7 @@ public final class CameraManager implements CctvApi {
     // ------------------------------------------------------------------ lifecycle
 
     public void load() {
+        bb.load(cfg.types.values());
         CameraStore.Loaded loaded = store.load(this::resolveType, cfg.damagedThreshold);
         for (Camera c : loaded.cameras()) {
             byId.put(c.id, c);
@@ -84,6 +87,7 @@ public final class CameraManager implements CctvApi {
         for (Camera c : byId.values()) parts.spawn(c);
         motor.start(plugin, cfg.ptzUpdateTicks);
         Bukkit.getScheduler().runTaskTimer(plugin, this::autosave, cfg.autosaveSeconds * 20L, cfg.autosaveSeconds * 20L);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::animateModels, 2, 2);
         log.info("Loaded " + byId.size() + " camera(s)");
     }
 
@@ -104,6 +108,8 @@ public final class CameraManager implements CctvApi {
         parts.config(cfg);
         items.config(cfg);
         motor.restart(plugin, cfg.ptzUpdateTicks);
+        for (Camera c : byId.values()) parts.despawn(c);
+        bb.load(cfg.types.values());
         for (Camera c : byId.values()) {
             parts.despawn(c);
             CameraType before = c.type;
@@ -112,6 +118,33 @@ public final class CameraManager implements CctvApi {
             if (before.maxHealth() != c.type.maxHealth()) c.health = Math.min(c.health, c.type.maxHealth());
             parts.spawn(c);
         }
+    }
+
+    /** Plays .bbmodel animation clips on cameras that someone is near enough to see (every 2 ticks). */
+    private void animateModels() {
+        for (Camera c : byId.values()) {
+            if (c.bbState == null || c.bbParts == null) continue;
+            World w = c.bukkitWorld();
+            if (w == null) continue;
+            boolean seen = false;
+            for (Player p : w.getPlayers()) {
+                double dx = p.getX() - c.x, dy = p.getY() - c.y, dz = p.getZ() - c.z;
+                if (dx * dx + dy * dy + dz * dz < 48 * 48) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (!seen) continue;
+            BbCameras.Model mdl = bb.model(c.type);
+            if (mdl == null) continue;
+            BbCameras.animate(mdl, c, c.bbState, 2);
+            parts.updateBb(c, 2);
+        }
+    }
+
+    /** Item models and textures of the loaded .bbmodel cameras, for the resource pack. */
+    public java.util.Map<String, byte[]> modelPackFiles() {
+        return bb.packFiles();
     }
 
     private void autosave() {

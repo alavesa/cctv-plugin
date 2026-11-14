@@ -14,7 +14,7 @@
 // That is the only effect such a coincidence can have; its colour and pixels stay vanilla.
 // =====================================================================================================================
 
-#include <minecraft:globals.glsl>
+#moj_import <minecraft:globals.glsl>
 
 const float CCTV_GLITCH_SLOTS = 5.0;    // how often the "HUD glitch burst?" dice is rolled, per second
 const float CCTV_GLITCH_CHANCE = 0.05;  // chance per roll (0.05 = roughly one burst every 4 s)

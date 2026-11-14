@@ -1,12 +1,19 @@
 # In-game test checklist
 
-Legend: ✅ verified on a real 26.3 client (test rig, 2026-11-14) · 🖥 verified on a headless server only ·
+Legend: ✅ verified on a real client (test rig, 2026-11-14; 26.3, and for 0.2.0 also 26.2) · 🖥 verified on a headless server only ·
 ☐ needs a person (clicking, keys, feel).
 
 Use two accounts where marked (one to view, one to walk around). Ops pass every permission check; also test with a
 normal player for anything permission- or clearance-related.
 
 ## 0. Install
+
+- ✅ 26.2: plugin enables (it was red in 0.1.0: `Unsupported API version 26.3`), pack loads, mob backend gives the
+  three looks, HUD + monitors + CRT work, FancyNpcs body double visible (FancyNpcs 2.12.1+383).
+- ✅ 0.2.0: monitor picture with real block colours and dithering; dolly zoom 1×/4×; example .bbmodel camera
+  (floor and wall mount) renders with the lens facing the authored way.
+- ☐ Your own .bbmodel camera: pan/tilt of the `head` bone, the `idle`/`move`/`alert` clips.
+- ☐ FancyNpcs body with a real (online) skin; punching it pulls the viewer out.
 
 - ✅ `Enabling CCTV v…` in the log, no exceptions. 🖥 `api-version: 26.3` accepted.
 - ☐ Client gets the pack prompt (delivery http). `/cctv pack` shows `SUCCESSFULLY_LOADED` for that player.

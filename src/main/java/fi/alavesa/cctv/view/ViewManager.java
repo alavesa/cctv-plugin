@@ -104,6 +104,8 @@ public final class ViewManager implements Listener, ViewBridge {
 
     public void start() {
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1, 1);
+        // FancyNpcs may fire its interact event off the main thread; hop back before touching sessions
+        NpcBody.bind(plugin, (attacker, npc) -> Bukkit.getScheduler().runTask(plugin, () -> npcHit(attacker, npc)));
         // players online during a plugin (re)load may carry a restore record from a crash
         for (Player p : Bukkit.getOnlinePlayers()) restoreFromRecord(p);
     }
@@ -290,10 +292,39 @@ public final class ViewManager implements Listener, ViewBridge {
         Entity a = s.anchor;
         if (a == null) return;
         float yaw = c.yaw(), pitch = c.pitch();
+        Location want = anchorAt(c, s.zoom());
+        if (a instanceof LivingEntity le) want.subtract(0, le.getEyeHeight(), 0);
+        if (a.getLocation().distanceSquared(want) > 1e-4) {
+            a.teleport(want); // also carries the rotation
+            if (a instanceof LivingEntity le) le.setBodyYaw(yaw);
+            return;
+        }
         if (Math.abs(a.getYaw() - yaw) > 0.01f || Math.abs(a.getPitch() - pitch) > 0.01f) {
             a.setRotation(yaw, pitch);
             if (a instanceof LivingEntity le) le.setBodyYaw(yaw);
         }
+    }
+
+    /**
+     * Where the anchor sits for a zoom level. "dolly" zoom moves the view forward along the line of sight
+     * (zoom-1) x view.zoom.blocks-per-level blocks, stopping 0.6 blocks short of the first solid block. It works on
+     * every version (26.2 can't receive post effects) and keeps full resolution, unlike a crop. Mob anchors are
+     * lowered by their eye height.
+     */
+    private Location anchorAt(Camera c, float zoom) {
+        Location eye = c.location();
+        if (zoom > 1.01f && !cfg.zoomMode.equals("digital")) {
+            // what is in the centre of the view should look `zoom` times bigger: move (1 - 1/zoom) of the way to
+            // it, at most blocks-per-level per level, and never closer than 0.6 blocks to a surface
+            org.bukkit.util.Vector dir = eye.getDirection();
+            double cap = (zoom - 1) * cfg.zoomBlocksPerLevel;
+            org.bukkit.util.RayTraceResult hit = eye.getWorld().rayTraceBlocks(eye, dir, 64,
+                    org.bukkit.FluidCollisionMode.NEVER, true);
+            double target = hit == null ? 64 : hit.getHitPosition().distance(eye.toVector());
+            double dist = Math.max(0, Math.min(Math.min(cap, target * (1 - 1 / zoom)), target - 0.6));
+            eye.add(dir.multiply(dist));
+        }
+        return eye;
     }
 
     private void attach(ViewSession s, Player p) {
@@ -324,12 +355,25 @@ public final class ViewManager implements Listener, ViewBridge {
         if (s.attachIn > 0) return;
         Camera c = s.camera;
         if (rising(before, now, Input::isJump) && c.type().zoomLevels().size() > 1) {
-            s.zoomIndex = (s.zoomIndex + 1) % c.type().zoomLevels().size();
-            s.effectsDirty = true;
-            hud(s).switched(s, e.getPlayer());
+            setZoomIndex(s, e.getPlayer(), (s.zoomIndex + 1) % c.type().zoomLevels().size());
         }
         int dir = rising(before, now, Input::isLeft) ? -1 : rising(before, now, Input::isRight) ? 1 : 0;
         if (dir != 0 && (now.isSprint() || !c.type().ptz())) switchBy(s, e.getPlayer(), dir);
+    }
+
+    private void setZoomIndex(ViewSession s, Player p, int index) {
+        s.zoomIndex = Math.clamp(index, 0, s.camera.type().zoomLevels().size() - 1);
+        s.effectsDirty = true;
+        hud(s).switched(s, p);
+        followCamera(s, s.camera);
+    }
+
+    /** Sets a viewer's zoom step (0 = 1x) on their current camera. @return false if they aren't viewing */
+    public boolean zoom(Player p, int index) {
+        ViewSession s = sessions.get(p.getUniqueId());
+        if (s == null || s.ending()) return false;
+        setZoomIndex(s, p, index);
+        return true;
     }
 
     private static boolean rising(@Nullable Input before, Input now, java.util.function.Predicate<Input> key) {
@@ -471,7 +515,7 @@ public final class ViewManager implements Listener, ViewBridge {
         s.effectsDirty = false;
         if (!s.fullEffects || !effects.appliesEffects()) return;
         List<Key> list = new ArrayList<>(4);
-        if (s.zoom() > 1.01f) list.add(PostEffects.zoom(s.zoom()));
+        if (s.zoom() > 1.01f && !cfg.zoomMode.equals("dolly")) list.add(PostEffects.zoom(s.zoom()));
         list.add(PostEffects.look(s.camera.type().look()));
         if (s.ending() && (s.endReason == Reason.DAMAGED || s.endReason == Reason.CAMERA_LOST)) {
             list.add(PostEffects.SIGNAL_LOST);
@@ -490,7 +534,7 @@ public final class ViewManager implements Listener, ViewBridge {
     // ------------------------------------------------------------------ anchor & body
 
     private Location anchorEye(Camera c) {
-        return c.location();
+        return anchorAt(c, 1f);
     }
 
     /**
@@ -500,7 +544,8 @@ public final class ViewManager implements Listener, ViewBridge {
     private Entity spawnAnchor(Camera c, Player viewer) {
         Location eye = anchorEye(c);
         World w = eye.getWorld();
-        Class<? extends LivingEntity> mob = effects.name().equals("mob") ? mobClass(c.type().fallbackAnchor()) : null;
+        Class<? extends LivingEntity> mob = effects.name().equals("mob")
+                ? mobClass(c.type().fallbackAnchor(), c.type().look()) : null;
         Entity e;
         if (mob != null) {
             LivingEntity le = w.spawn(eye, mob, m -> {
@@ -534,8 +579,21 @@ public final class ViewManager implements Listener, ViewBridge {
         e.getPersistentDataContainer().set(cameras.keys().part, PersistentDataType.STRING, "anchor");
     }
 
-    private static @Nullable Class<? extends LivingEntity> mobClass(String name) {
-        return switch (name.toLowerCase(Locale.ROOT)) {
+    /**
+     * The anchor mob for the vanilla spectated-entity shaders. "auto" picks by the camera's look; the CCTV pack
+     * replaces those vanilla effects with its own: creeper = standard CCTV look, spider = night vision,
+     * enderman ("invert") = thermal.
+     */
+    private static @Nullable Class<? extends LivingEntity> mobClass(String name, String look) {
+        String n = name.toLowerCase(Locale.ROOT);
+        if (n.equals("auto")) {
+            n = switch (look) {
+                case "night_vision" -> "spider";
+                case "thermal" -> "enderman";
+                default -> "creeper";
+            };
+        }
+        return switch (n) {
             case "creeper" -> Creeper.class;
             case "spider" -> Spider.class;
             case "enderman" -> Enderman.class;
@@ -545,6 +603,15 @@ public final class ViewManager implements Listener, ViewBridge {
 
     private void spawnBody(ViewSession s, Player p) {
         Location at = p.getLocation();
+        if (!cfg.bodyMode.equals("mannequin") && NpcBody.available()) {
+            s.npcBody = NpcBody.spawn(p, at, plugin.getLogger());
+            if (s.npcBody != null) {
+                ticket(s, at);
+                return;
+            }
+        } else if (cfg.bodyMode.equals("fancynpcs")) {
+            plugin.getLogger().warning("view.body is fancynpcs but FancyNpcs isn't available; using a Mannequin");
+        }
         Mannequin body = at.getWorld().spawn(at, Mannequin.class, m -> {
             m.setPersistent(false);
             m.setProfile(ResolvableProfile.resolvableProfile(p.getPlayerProfile()));
@@ -564,6 +631,10 @@ public final class ViewManager implements Listener, ViewBridge {
             m.getPersistentDataContainer().set(cameras.keys().part, PersistentDataType.STRING, "body");
         });
         s.body = body;
+        ticket(s, at);
+    }
+
+    private void ticket(ViewSession s, Location at) {
         Chunk ch = at.getChunk();
         s.bodyWorld = at.getWorld().getName();
         s.bodyChunk = ch.getChunkKey();
@@ -574,6 +645,8 @@ public final class ViewManager implements Listener, ViewBridge {
     private void removeBody(ViewSession s) {
         if (s.body != null) s.body.remove();
         s.body = null;
+        NpcBody.remove(s.npcBody, plugin.getLogger());
+        s.npcBody = null;
         if (s.bodyWorld == null) return;
         long key = ticketKey(s);
         int left = bodyTickets.merge(key, -1, Integer::sum);
@@ -712,6 +785,20 @@ public final class ViewManager implements Listener, ViewBridge {
             if (s.body == hurt && !s.ending()) {
                 s.pendingDamage = e.getDamage();
                 s.pendingSource = e.getDamageSource();
+                end(s, Reason.DAMAGED, cfg.lostTicks);
+                return;
+            }
+        }
+    }
+
+    /** A FancyNpcs double was hit: same as hurting a Mannequin double. */
+    private void npcHit(Player attacker, String npc) {
+        for (ViewSession s : sessions.values()) {
+            if (npc.equals(s.npcBody) && !s.ending()) {
+                var attr = attacker.getAttribute(org.bukkit.attribute.Attribute.ATTACK_DAMAGE);
+                s.pendingDamage = attr == null ? 1.0 : Math.max(1.0, attr.getValue());
+                s.pendingSource = org.bukkit.damage.DamageSource.builder(org.bukkit.damage.DamageType.PLAYER_ATTACK)
+                        .withCausingEntity(attacker).withDirectEntity(attacker).build();
                 end(s, Reason.DAMAGED, cfg.lostTicks);
                 return;
             }

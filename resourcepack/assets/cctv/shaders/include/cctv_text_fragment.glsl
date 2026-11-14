@@ -20,7 +20,7 @@
 // drawn here procedurally (colour bars, static, boot sweep, off), so those states cost the server nothing.
 // =====================================================================================================================
 
-#include <minecraft:globals.glsl>
+#moj_import <minecraft:globals.glsl>
 
 #ifndef CCTV_HASH_DEFINED
 #define CCTV_HASH_DEFINED
@@ -51,6 +51,8 @@ const float CRT_ROLL_SPEED = 0.12;      // rolling bar speed, screens per second
 const float CRT_VIGNETTE = 0.55;        // darkening toward the tile corners
 const float CRT_EDGE_GLOW = 0.30;       // bluish glow just inside the bezel
 const float CRT_GAIN = 1.10;            // overall brightness; screens light themselves (world light is ignored)
+const float CRT_SOFT = 0.55;            // blend toward a 5-tap blur: smooths the server's dither pattern into tone
+                                        // (0 = razor-sharp map pixels, 1 = fully blurred)
 const float CRT_BOOT_SECONDS = 2.0;     // length of one boot-sweep loop
 const vec3  CRT_GREEN = vec3(0.30, 1.00, 0.40);  // green phosphor (style 1, night-vision cameras)
 const vec3  CRT_AMBER = vec3(1.00, 0.70, 0.22);  // amber phosphor (style 2)
@@ -131,6 +133,14 @@ vec4 cctv_crt(vec4 color, sampler2D tex, vec2 uv) {
     // clamp away from the outermost ring of pixels: that is where the sentinel lives
     ivec2 p = clamp(ivec2(cu * 128.0), ivec2(1), ivec2(126));
     vec3 img = texelFetch(tex, p, 0).rgb;
+    if (CRT_SOFT > 0.0) {
+        vec3 blur = img * 0.4
+                + texelFetch(tex, clamp(p + ivec2(1, 0), ivec2(1), ivec2(126)), 0).rgb * 0.15
+                + texelFetch(tex, clamp(p - ivec2(1, 0), ivec2(1), ivec2(126)), 0).rgb * 0.15
+                + texelFetch(tex, clamp(p + ivec2(0, 1), ivec2(1), ivec2(126)), 0).rgb * 0.15
+                + texelFetch(tex, clamp(p - ivec2(0, 1), ivec2(1), ivec2(126)), 0).rgb * 0.15;
+        img = mix(img, blur, CRT_SOFT);
+    }
     float n = cctv_hash(vec2(p) + fract(t * 37.0) * vec2(91.0, 57.0));
     float textMask = step(0.6, dot(img, vec3(0.333)));
     vec3 col;

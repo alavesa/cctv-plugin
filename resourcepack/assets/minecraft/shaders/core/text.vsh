@@ -1,33 +1,32 @@
 #version 330
-#extension GL_ARB_separate_shader_objects : require
 
 #if !defined(IS_GUI) && !defined(IS_SEE_THROUGH)
-#include <minecraft:fog.glsl>
-#include <minecraft:sample_lightmap.glsl>
+#moj_import <minecraft:fog.glsl>
+#moj_import <minecraft:sample_lightmap.glsl>
 #endif
 
-#include <minecraft:dynamictransforms.glsl>
-#include <minecraft:projection.glsl>
+#moj_import <minecraft:dynamictransforms.glsl>
+#moj_import <minecraft:projection.glsl>
 
 // ===== CCTV BEGIN =====
-#include <cctv:cctv_text_vertex.glsl>
+#moj_import <cctv:cctv_text_vertex.glsl>
 // ===== CCTV END =====
 
-layout(location = 0) in vec3 Position;
-layout(location = 1) in vec4 Color;
-layout(location = 2) in vec2 UV0;
+in vec3 Position;
+in vec4 Color;
+in vec2 UV0;
 #if !defined(IS_GUI) && !defined(IS_SEE_THROUGH)
-layout(location = 3) in ivec2 UV2;
+in ivec2 UV2;
 #endif
 
 #if !defined(IS_GUI) && !defined(IS_SEE_THROUGH)
 uniform sampler2D Sampler2;
-layout(location = 0) out float sphericalVertexDistance;
-layout(location = 1) out float cylindricalVertexDistance;
+out float sphericalVertexDistance;
+out float cylindricalVertexDistance;
 #endif
 
-layout(location = 2) out vec4 vertexColor;
-layout(location = 3) out vec2 texCoord0;
+out vec4 vertexColor;
+out vec2 texCoord0;
 
 void main() {
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);

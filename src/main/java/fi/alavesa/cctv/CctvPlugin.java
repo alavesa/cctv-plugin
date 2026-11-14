@@ -34,12 +34,15 @@ public final class CctvPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        if (!new java.io.File(getDataFolder(), "models/example_ptz.bbmodel").exists()) {
+            saveResource("models/example_ptz.bbmodel", false);
+        }
         CctvConfig cfg = CctvConfig.load(getConfig(), getLogger());
         messages = new Messages(getConfig());
 
         cameras = new CameraManager(this, cfg);
         cameras.load();
-        packs = new PackService(getLogger(), getFile(), getDataFolder().toPath(), cfg);
+        packs = new PackService(getLogger(), getFile(), getDataFolder().toPath(), cfg, cameras::modelPackFiles);
         packs.start();
         views = new ViewManager(this, cameras, packs, PostEffects.create(cfg.effectsBackend, getLogger()),
                 () -> messages, cfg);

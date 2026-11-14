@@ -1,5 +1,4 @@
 #version 330
-#extension GL_ARB_separate_shader_objects : require
 
 // =====================================================================================================================
 // CCTV digital zoom (cctv:zoom_2x, cctv:zoom_3x, cctv:zoom_4x). Crops the centre and scales it up. Runs BEFORE the
@@ -13,9 +12,9 @@ layout(std140) uniform ZoomConfig {
     float Zoom; // magnification, set per variant in post_effect/zoom_*.json
 };
 
-layout(location = 0) in vec2 texCoord;
+in vec2 texCoord;
 
-layout(location = 0) out vec4 fragColor;
+out vec4 fragColor;
 
 void main() {
     vec2 uv = 0.5 + (texCoord - 0.5) / max(Zoom, 1.0);

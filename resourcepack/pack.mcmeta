@@ -1,8 +1,17 @@
 {
   "pack": {
-    "description": "CCTV: cameras, feeds and monitors",
-    "pack_format": 97,
-    "min_format": 97,
+    "description": "CCTV: cameras, feeds and monitors (Minecraft 26.2 and 26.3)",
+    "pack_format": 88,
+    "min_format": 88,
     "max_format": 97
+  },
+  "overlays": {
+    "entries": [
+      {
+        "min_format": 97,
+        "max_format": 97,
+        "directory": "cctv_26_3"
+      }
+    ]
   }
 }

@@ -43,7 +43,7 @@ import org.jspecify.annotations.Nullable;
 public final class CctvCommand implements BasicCommand {
 
     private static final List<String> SUBS = List.of("give", "create", "remove", "list", "info", "rename", "setgroup",
-            "tp", "power", "enable", "repair", "damage", "aim", "set", "view", "exit", "pack", "monitor", "perf", "browse", "admin", "terminal", "zone", "reload", "help");
+            "tp", "power", "enable", "repair", "damage", "aim", "set", "view", "exit", "pack", "monitor", "perf", "browse", "admin", "terminal", "zone", "zoom", "reload", "help");
     private static final List<String> SET_KEYS = List.of("fov", "clearance", "pan-min", "pan-max", "tilt-min",
             "tilt-max", "yaw", "pitch", "type");
     private static final int PAGE = 8;
@@ -115,6 +115,7 @@ public final class CctvCommand implements BasicCommand {
                 case "admin" -> browse(s, a, true);
                 case "terminal" -> terminal(s, a);
                 case "zone" -> zone(s, a);
+                case "zoom" -> zoom(s, a);
                 case "reload" -> {
                     reload.run();
                     msg(s, "reloaded", Messages.p("count", cameras.cameras().size()));
@@ -446,6 +447,18 @@ public final class CctvCommand implements BasicCommand {
             var st = packs.status(p);
             msg(s, "pack-player", Messages.p("player", p.getName()), Messages.p("status", st == null ? "-" : st.name()),
                     Messages.p("loaded", packs.loaded(p)));
+        }
+    }
+
+    /** zoom &lt;step&gt; [player] : step 0 = 1x, 1 = the type's second zoom level, ... */
+    private void zoom(CommandSender s, String[] a) {
+        if (a.length < 1) {
+            usage(s, "/cctv zoom <step> [player]");
+            return;
+        }
+        Player target = a.length >= 2 ? Bukkit.getPlayerExact(a[1]) : s instanceof Player p ? p : null;
+        if (target == null || !views.zoom(target, Integer.parseInt(a[0]))) {
+            msg(s, "view-not-viewing", Messages.p("player", target == null ? "-" : target.getName()));
         }
     }
 

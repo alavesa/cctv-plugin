@@ -1,5 +1,4 @@
 #version 330
-#extension GL_ARB_separate_shader_objects : require
 
 // =====================================================================================================================
 // CCTV look: the full-screen camera-feed effect (cctv:standard, cctv:night_vision, cctv:thermal).
@@ -72,10 +71,10 @@ layout(std140) uniform SamplerInfo {
 // file has no cross-file dependency. Post passes bind it (PostPass -> RenderSystem.bindDefaultUniforms).
 layout(std140) uniform Globals {
     ivec3 CameraBlockPos;
-    float GlintAlpha;
     vec3 CameraOffset;
-    float GameTime;
     vec2 ScreenSize;
+    float GlintAlpha;
+    float GameTime;
     int MenuBlurRadius;
     int UseRgss;
 };
@@ -86,9 +85,9 @@ layout(std140) uniform CctvLook {
     float Intensity; // multiplier for grain, jitter and flicker (1 = as tuned above)
 };
 
-layout(location = 0) in vec2 texCoord;
+in vec2 texCoord;
 
-layout(location = 0) out vec4 fragColor;
+out vec4 fragColor;
 
 // Hash without sine (Dave Hoskins): stable across GPUs, unlike fract(sin(x) * big).
 float hash12(vec2 p) {

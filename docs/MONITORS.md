@@ -6,18 +6,26 @@ A vanilla client can't show video inside a block, and no shader can look through
 does instead:
 
 1. **The server draws the picture.** For each watched monitor it casts one ray per pixel from the camera through a
-   copy of the nearby chunks (`ChunkSnapshot`, captured on the main thread, rendered on a background thread). A hit
-   block gets the colour a vanilla map would give it, shaded by face, light and distance. Mobs and players are flat
-   silhouettes: players and mannequins white, monsters red, other mobs green, dropped items yellow. There are no
-   name tags, textures, particles or transparency.
+   copy of the nearby chunks (`ChunkSnapshot`, captured on the main thread, rendered on background threads). It
+   shades in full colour:
+   - each block's real colour per face, measured from the vanilla textures (`block_colors.tsv`, made by
+     `tools/gen_block_colors.py`; only averages ship);
+   - texture grain scaled by that texture's contrast;
+   - Minecraft-style face shading and smooth ambient occlusion in corners and edges;
+   - sky and block light, distance fog into a sky gradient;
+   - see-through water with depth, tinted glass.
+
+   The result is **dithered** into the 248 map colours, so gradients and tints are smooth instead of four flat steps.
+   Mobs and players are shaded silhouettes by category. There are no name tags or particles.
 2. **The picture goes onto maps.** Each block of screen is one 128×128 map in an invisible, fixed glow item frame.
    A 2×2 wall is 256×256 map pixels.
 3. **The client's shader makes it look like a CRT.** Item-frame maps are drawn by the same `core/text` shader as the
-   HUD. A sentinel pattern in each CCTV map's corners tells the shader to add curvature, scanlines, phosphor mask,
-   noise, flicker, a rolling bar, vignette and edge glow, all animated on the GPU at no server cost.
+   HUD. A sentinel pattern in each CCTV map's corners tells the shader to soften the dither back into smooth tone
+   (`CRT_SOFT`) and add curvature, scanlines, phosphor mask, noise, flicker, a rolling bar, vignette and edge glow,
+   all animated on the GPU at no server cost.
 
-So the feed is a coarse, map-coloured, low-frame-rate picture (2 fps at 64 px per block by default). It reads well as
-a security monitor. It is not video.
+So the feed is a smooth-shaded, low-frame-rate picture (2 fps at the full 128 px per block by default). It reads
+well as a security monitor. It is not video.
 
 ## Placing and wiring
 

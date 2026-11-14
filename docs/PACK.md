@@ -7,9 +7,11 @@
 | `assets/cctv/items`, `models/item`, `textures/item` | camera, monitor, terminal models and GUI icons |
 | `assets/cctv/post_effect`, `shaders/post` | full-screen camera look, zoom, signal effects |
 | `assets/cctv/font`, `textures/font`, `textures/gui` | HUD fonts (`hud_*`, `hud_big_*`, `space`), GUI background (`gui`) |
-| `assets/cctv/shaders/include` | the CCTV text-shader code (HUD effects, monitor CRT) |
+| `assets/cctv/shaders/include` | the CCTV text-shader code (HUD effects, monitor CRT), 26.2 syntax |
+| `cctv_26_3/` | **overlay** read only by 26.3 clients: the same shaders in 26.3 syntax (`#include`, `layout(location)`, 26.3 `Globals` order) |
 | `assets/cctv/sounds.json`, `lang/en_us.json` | sound events and subtitles (you add the `.ogg` files) |
-| `assets/minecraft/shaders/core/text.vsh`, `text.fsh` | **the only vanilla files overridden** |
+| `assets/minecraft/shaders/core/text.vsh`, `text.fsh` | vanilla override: HUD marker + monitor CRT (26.2 version in the base, 26.3 version in the overlay) |
+| `assets/minecraft/post_effect/creeper.json`, `spider.json`, `invert.json` | vanilla override: what a client shows while spectating a creeper / spider / enderman becomes the CCTV standard / night-vision / thermal look. That's how 26.2 gets the camera look (the mob backend). Side effect: a spectator-mode player who spectates one of those mobs sees the CCTV look instead of vanilla's. |
 
 Every id is in the `cctv` namespace: item models `cctv:camera_*`, `cctv:monitor_*`, `cctv:terminal`,
 `cctv:gui_cam_*`; fonts `cctv:hud_0..13`, `cctv:hud_big_0..5`, `cctv:space`, `cctv:gui`; post effects
@@ -17,9 +19,10 @@ Every id is in the `cctv` namespace: item models `cctv:camera_*`, `cctv:monitor_
 `signal_lost`; sounds `cctv:camera.motor`, `feed.switch`, `monitor.hum`, `power.off`, `signal.lost`, `alert`. None
 of them can collide with another pack's assets.
 
-`pack.mcmeta` declares format **97** (Minecraft 26.3) as both min and max on purpose: the shaders use 26.3's GLSL
-layout, so a future client should mark the pack incompatible rather than load broken shaders. Raise `max_format`
-only after testing on the new version.
+`pack.mcmeta` declares formats **88..97** (Minecraft 26.2 = 88, 26.3 = 97) with one overlay entry
+(`cctv_26_3`, format 97). The base holds the 26.2 shaders; on 26.3 the overlay replaces them. The range stops at 97 on
+purpose: shader syntax changes between versions, so a future client should call the pack incompatible rather than load
+broken shaders. Shaders are edited once, in `cctv_26_3/`; `tools/port_262.py` writes the 26.2 copies.
 
 ## Option 1: standalone (recommended)
 
@@ -54,18 +57,19 @@ python3 tools/merge_pack.py --cctv resourcepack --into path/to/your-pack --out m
 python3 tools/merge_pack.py --cctv plugins/CCTV/cctv-pack.zip --into your-pack.zip --out merged.zip
 ```
 
-It copies `assets/cctv/**`, keeps your `pack.mcmeta`/`pack.png` (warns if your pack doesn't declare 97;
-`--set-format` fixes that), and handles the two text shaders:
+It copies `assets/cctv/**` and the `cctv_26_3/` overlay, registers the overlay in your `pack.mcmeta` (warns if your
+pack declares neither 88 nor 97; `--set-format` sets 88..97), adds the three mob-look overrides unless you ship your
+own, and handles the two text shaders in your pack's own syntax:
 
 | Your pack has `core/text.*` | Result |
 |---|---|
 | no | CCTV's files are used |
 | yes, already merged earlier | the CCTV blocks inside are replaced with the current ones (safe to re-run after updates) |
-| yes, your own version | the CCTV blocks are spliced into **your** file: the include after your last `#include`, the call after your `gl_Position = …` line (vertex) and after your `vec4 color = … texColor …` line (fragment) |
+| yes, your own version | the CCTV blocks are spliced into **your** file (26.2 `#moj_import` or 26.3 `#include` style): the include after your last import, the call after your `gl_Position = …` line (vertex) and just before your `if (color.a < 0.1)` alpha test (fragment). If your file is 26.3 style, our overlay copy is left out so yours stays in charge on 26.3 too. |
 | yes, but those lines can't be found | it stops, writes nothing, and tells you which file to merge by hand |
 
-Tested cases: a pack with no shaders; a pack with a modified vanilla `text.fsh` (the result compiles in glslang);
-re-merging a merged pack (byte-identical); a pack with an unrecognisable shader (clean refusal).
+Tested cases: a pack with no shaders; packs with their own 26.2-style and 26.3-style `text.*` (results compile in
+glslang); re-merging a merged pack (identical); a pack with an unrecognisable shader (clean refusal).
 
 ### With the Lab build script
 
@@ -93,7 +97,7 @@ Resource packs replace whole files. If two packs ship `assets/minecraft/shaders/
 higher-priority one is used. To keep both:
 
 1. Start from **their** file. Copy `assets/cctv/` from the CCTV pack next to it (the include files live there).
-2. `text.vsh`: after their `#include` lines add
+2. `text.vsh`: after their `#include` lines (26.2: `#moj_import`, and write `#moj_import` below too) add
    ```glsl
    // ===== CCTV BEGIN =====
    #include <cctv:cctv_text_vertex.glsl>
@@ -112,7 +116,7 @@ higher-priority one is used. To keep both:
    #include <cctv:cctv_text_fragment.glsl>
    // ===== CCTV END =====
    ```
-   and right after the line that computes the colour (before `if (color.a < 0.1) discard;`):
+   and right before the alpha test `if (color.a < 0.1)` (after however the pack computes `color`):
    ```glsl
        // ===== CCTV BEGIN =====
        color = cctv_text_fragment(color, texColor, vertexColor, Sampler0, texCoord0, ColorModulator);

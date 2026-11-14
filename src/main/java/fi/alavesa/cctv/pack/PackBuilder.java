@@ -34,7 +34,7 @@ public final class PackBuilder {
     private PackBuilder() {
     }
 
-    public static Built fromJar(File pluginJar) throws IOException {
+    public static Built fromJar(File pluginJar, Map<String, byte[]> extra) throws IOException {
         Map<String, byte[]> files = new TreeMap<>();
         try (JarFile jar = new JarFile(pluginJar)) {
             for (JarEntry e : java.util.Collections.list(jar.entries())) {
@@ -44,10 +44,11 @@ public final class PackBuilder {
                 }
             }
         }
+        files.putAll(extra);
         return zip(files);
     }
 
-    public static Built fromFolder(Path root) throws IOException {
+    public static Built fromFolder(Path root, Map<String, byte[]> extra) throws IOException {
         Map<String, byte[]> files = new TreeMap<>();
         try (Stream<Path> walk = Files.walk(root)) {
             for (Path p : walk.filter(Files::isRegularFile).toList()) {
@@ -56,6 +57,7 @@ public final class PackBuilder {
                 files.put(rel, Files.readAllBytes(p));
             }
         }
+        files.putAll(extra);
         return zip(files);
     }
 

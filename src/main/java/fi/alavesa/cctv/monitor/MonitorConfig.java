@@ -44,13 +44,13 @@ public final class MonitorConfig {
 
     private MonitorConfig(FileConfiguration c, Logger log) {
         String p = "monitors.";
-        renderScale = Math.clamp(c.getInt(p + "render.scale", 2), 1, 4);
+        renderScale = Math.clamp(c.getInt(p + "render.scale", 1), 1, 4);
         fps = Math.clamp(c.getDouble(p + "render.fps", 2.0), 0.1, 10.0);
         maxDistance = Math.clamp(c.getDouble(p + "render.max-distance", 48), 8, 128);
         watchRadius = c.getDouble(p + "render.watch-radius", 16);
         watchNeedsLineOfSight = c.getBoolean(p + "render.watch-needs-line-of-sight", true);
         msBudgetPerTick = Math.max(0.2, c.getDouble(p + "render.ms-budget-per-tick", 2.0));
-        threads = Math.clamp(c.getInt(p + "render.threads", 1), 1, 8);
+        threads = Math.clamp(c.getInt(p + "render.threads", 2), 1, 8);
         cacheTtlTicks = Math.max(20, c.getInt(p + "render.chunk-cache-seconds", 8) * 20);
         pushFrames = c.getBoolean(p + "render.push-frames", true);
         snapshotIntervalSeconds = Math.clamp(c.getDouble(p + "snapshot-interval-seconds", 2.0), 1.0, 10.0);

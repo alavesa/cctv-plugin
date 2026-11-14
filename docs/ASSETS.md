@@ -6,9 +6,51 @@ and run `/cctv reload`.
 
 ## Vanilla files overridden
 
-**None so far.** Phase 4 adds `assets/minecraft/shaders/core/text.vsh/fsh` for the HUD and monitor screens.
+`assets/minecraft/shaders/core/text.vsh/fsh` (HUD marker, monitor CRT) and `assets/minecraft/post_effect/creeper.json`,
+`spider.json`, `invert.json` (the camera looks on 26.2). Details and merge help: [PACK.md](PACK.md).
 
-## Camera models
+Shaders live in `resourcepack/cctv_26_3/` (26.3 syntax). After editing them, run `python3 tools/port_262.py` to
+regenerate the 26.2 copies in the pack base.
+
+## Your own camera models from Blockbench (.bbmodel)
+
+Put the file in `plugins/CCTV/models/` and point a camera type at it:
+
+```yaml
+types:
+  my_ptz:
+    model: {bbmodel: "my_ptz.bbmodel", placer: "cctv:camera_ptz_item"}
+    ptz: true
+    ...
+```
+
+`/cctv reload` converts it (the same converter as SuperbVehicles: one item model per moving part, exact rotations,
+no 22.5° snapping), adds it to the resource pack, re-sends the pack and respawns those cameras. The log lists parts,
+animations and any warnings. `plugins/CCTV/models/example_ptz.bbmodel` (type `example_bb`) is a working template.
+
+**Rules**
+- Any Blockbench format (Generic / Java / Bedrock). Textures embedded or next to the file.
+- **The lens point is the origin (0, 0, 0) and the lens looks north (−Z).** That's where the view is taken from.
+- Build it as a **floor** mount (bracket below the lens). Wall and ceiling cameras are the same model, rotated so the
+  bracket's bottom faces the wall or ceiling.
+- A group named **`head`** (or `lens`) and everything inside it turns with pan and tilt. Put its pivot at 0, 0, 0
+  (the log warns otherwise). Everything outside it stays fixed to the bracket.
+- `hitbox_*` groups are not drawn. Groups hidden in Blockbench (eye icon) are left out.
+
+**Animations** (played by name, looping clips loop):
+
+| Clip | Plays |
+|---|---|
+| `idle` | always |
+| `move` | while a PTZ head is turning (falls back to `idle`) |
+| `alert` | while the camera is in alert (falls back to `idle`) |
+| `destroyed` | while the camera is destroyed (otherwise the model just stays as it is) |
+
+Rotation, position and scale keyframes with linear, step, Catmull-Rom or Bézier interpolation are supported.
+Animations play only while a player is within 48 blocks (2 updates per second of network traffic per camera).
+The camera's own model is hidden from whoever is viewing through it.
+
+## Camera models (built-in placeholders)
 
 Placeholder models and textures ship, so cameras look like cameras out of the box. Replace any of them, keeping
 the file names.

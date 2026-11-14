@@ -1,5 +1,4 @@
 #version 330
-#extension GL_ARB_separate_shader_objects : require
 
 // =====================================================================================================================
 // CCTV signal problems, stacked AFTER the look effect:
@@ -32,13 +31,13 @@ layout(std140) uniform SamplerInfo {
     vec2 InSize;
 };
 
-// Same block and layout as minecraft:globals.glsl (26.3); see cctv_look.fsh.
+// Same block and layout as minecraft:globals.glsl (26.2); see cctv_look.fsh.
 layout(std140) uniform Globals {
     ivec3 CameraBlockPos;
-    float GlintAlpha;
     vec3 CameraOffset;
-    float GameTime;
     vec2 ScreenSize;
+    float GlintAlpha;
+    float GameTime;
     int MenuBlurRadius;
     int UseRgss;
 };
@@ -48,9 +47,9 @@ layout(std140) uniform SignalConfig {
     float Mode;     // 0 degraded, 1 static burst, 2 signal lost
 };
 
-layout(location = 0) in vec2 texCoord;
+in vec2 texCoord;
 
-layout(location = 0) out vec4 fragColor;
+out vec4 fragColor;
 
 float hash12(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);

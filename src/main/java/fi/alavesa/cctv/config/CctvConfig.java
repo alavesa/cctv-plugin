@@ -55,9 +55,14 @@ public final class CctvConfig {
     public final int exitTicks;
     public final int lostTicks;
     public final boolean bodyDouble;
+    /** auto | fancynpcs | mannequin | none */
+    public final String bodyMode;
     public final boolean forwardDamage;
     public final boolean switchOnLost;
     public final boolean switchSkipsOffline;
+    /** dolly (move the view forward, works everywhere) | digital (26.3 post effect crop) | both */
+    public final String zoomMode;
+    public final double zoomBlocksPerLevel;
     public final float ptzLookahead;
     public final int helpSeconds;
     public final boolean requirePackForEffects;
@@ -120,10 +125,14 @@ public final class CctvConfig {
         transitionTicks = Math.max(0, c.getInt("view.transition-ticks", 8));
         exitTicks = Math.max(0, c.getInt("view.exit-transition-ticks", 6));
         lostTicks = Math.max(0, c.getInt("view.signal-lost-ticks", 20));
-        bodyDouble = c.getBoolean("view.body-double", true);
+        bodyMode = c.getString("view.body", c.getBoolean("view.body-double", true) ? "auto" : "none")
+                .toLowerCase(Locale.ROOT);
+        bodyDouble = !bodyMode.equals("none");
         forwardDamage = c.getBoolean("view.forward-damage", true);
         switchOnLost = c.getString("view.on-camera-lost", "switch").equalsIgnoreCase("switch");
         switchSkipsOffline = c.getBoolean("view.switch-skips-offline", true);
+        zoomMode = c.getString("view.zoom.mode", "dolly").toLowerCase(Locale.ROOT);
+        zoomBlocksPerLevel = Math.max(0.5, c.getDouble("view.zoom.blocks-per-level", 5));
         ptzLookahead = (float) Math.max(0.05, c.getDouble("view.ptz-lookahead-seconds", 0.15));
         helpSeconds = Math.max(0, c.getInt("view.help-seconds", 4));
         requirePackForEffects = c.getBoolean("view.require-pack-for-effects", true);
@@ -163,7 +172,7 @@ public final class CctvConfig {
             parsed.put("dome", new CameraType("dome", Component.text("Dome Camera"),
                     NamespacedKey.fromString("cctv:camera_dome"), null, NamespacedKey.fromString("cctv:camera_broken"),
                     NamespacedKey.fromString("cctv:camera_dome"), false, 70, -45, 45, -20, 40, 30,
-                    List.of(1f), "standard", "none", 20, 0, 1f));
+                    List.of(1f), "standard", "auto", 20, 0, 1f, null));
         }
         types = Collections.unmodifiableMap(parsed);
     }
@@ -200,10 +209,15 @@ public final class CctvConfig {
                 (float) Math.max(1, t.getDouble("pan-speed", 30)),
                 List.copyOf(zoom),
                 t.getString("look", "standard"),
-                t.getString("fallback-anchor", "none").toLowerCase(Locale.ROOT),
+                t.getString("fallback-anchor", "auto").toLowerCase(Locale.ROOT),
                 Math.max(1, t.getDouble("max-health", 20)),
                 Math.max(0, t.getInt("clearance", 0)),
-                (float) t.getDouble("model-scale", 1.0));
+                (float) t.getDouble("model-scale", 1.0),
+                blankToNull(t.getString("model.bbmodel", "")));
+    }
+
+    private static @Nullable String blankToNull(@Nullable String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 
     private static @Nullable NamespacedKey key(@Nullable String s) {

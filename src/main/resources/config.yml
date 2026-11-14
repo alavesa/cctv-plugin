@@ -65,14 +65,26 @@ view:
   exit-transition-ticks: 6
   # "SIGNAL LOST" before the player is restored after the body was hurt or the camera died, ticks
   signal-lost-ticks: 20
-  # a Mannequin with the player's skin stays where they started viewing; hurting it pulls them out
-  body-double: true
+  # what stays where the player started viewing, so others can see (and hurt) them:
+  #   auto      FancyNpcs player NPC if FancyNpcs is installed, otherwise a Mannequin
+  #   fancynpcs FancyNpcs NPC (falls back to a Mannequin if FancyNpcs is missing)
+  #   mannequin vanilla Mannequin entity (also takes arrows and explosions)
+  #   none      nothing (the player just vanishes while viewing)
+  # hurting the body pulls the player out of the camera ("SIGNAL LOST")
+  body: auto
   # after being pulled out, the player takes the damage the body took
   forward-damage: true
   # camera goes offline mid-view: switch (to the next working camera in the network) | exit
   on-camera-lost: switch
   # A/D (and Ctrl+A/D) skip cameras that are offline
   switch-skips-offline: true
+  zoom:
+    # dolly: the view moves forward along its line of sight (works on 26.2 and 26.3, full resolution)
+    # digital: 26.3 post-effect crop (pixelated, like a cheap digital zoom) | both
+    mode: dolly
+    # dolly: the view moves toward what is in the centre so it looks N times bigger (1 - 1/N of the distance),
+    # at most this many blocks per level above 1x, and never closer than 0.6 blocks to a surface
+    blocks-per-level: 5
   # how far ahead of the PTZ motor a held key aims, seconds of motor travel
   ptz-lookahead-seconds: 0.15
   # control help shown at the start of a feed, seconds
@@ -91,8 +103,9 @@ hud:
   time-format: "HH:mm:ss"
 
 effects:
-  # auto (Paper Player.postEffects) | paper | command (/posteffect as console) | mob (vanilla creeper/spider/
-  # enderman spectator shaders, no pack needed) | none (HUD only)
+  # auto: Player.postEffects() on Minecraft 26.3+, the mob backend on 26.2
+  # paper | command (/posteffect as console, 26.3+) | mob (the camera anchor is an invisible creeper/spider/
+  # enderman; the CCTV pack turns their vanilla spectator shaders into the CCTV looks) | none (HUD only)
   backend: auto
   # health fraction below which the feed shows signal_weak / signal_critical
   weak-signal-below: 0.5
@@ -118,8 +131,9 @@ pack:
 
 monitors:
   render:
-    # map pixels per rendered pixel: 1 = full 128 px per block (4x the CPU of 2), 2 = 64 px upscaled (default)
-    scale: 2
+    # map pixels per rendered pixel: 1 = full 128 px per block (best, default), 2 = 64 px upscaled (a quarter of the
+    # CPU), 4 = 32 px. The governor raises it automatically when the server lags.
+    scale: 1
     # frames per second per watched monitor (0.1 - 10); bandwidth is ~16 KB per tile per frame per watcher
     fps: 2.0
     # how far the camera "sees" for monitors, blocks
@@ -130,8 +144,8 @@ monitors:
     watch-needs-line-of-sight: true
     # main-thread time per tick for capturing chunk snapshots (all monitors together), milliseconds
     ms-budget-per-tick: 2.0
-    # render threads
-    threads: 1
+    # render threads (rendering never runs on the main thread)
+    threads: 2
     # chunk snapshots are reused this long (block changes in a chunk drop its snapshot early)
     chunk-cache-seconds: 8
     # send each new frame to watchers immediately (otherwise vanilla item-frame updates, every 10 ticks)
@@ -214,8 +228,11 @@ alerts:
 #   model.base    item model of the fixed bracket ("" = none)
 #   model.broken  head model while DESTROYED
 #   model.placer  placement item model (defaults to model.head)
+#   model.bbmodel a Blockbench file in plugins/CCTV/models/ that replaces head/base (docs/ASSETS.md: lens at the
+#                 origin looking north, bone "head" pans and tilts, clips idle / move / alert / destroyed)
 #   look          post-effect look while viewed: standard | night_vision | thermal
-#   fallback-anchor  mob used by the vanilla mob-shader fallback: creeper | spider | enderman | none
+#   fallback-anchor  mob used by the mob backend (Minecraft 26.2, or effects.backend: mob): auto (by look:
+#                    standard = creeper, night_vision = spider, thermal = enderman) | creeper | spider | enderman | none
 types:
   dome:
     name: "<white>Dome Camera"
@@ -227,7 +244,7 @@ types:
     pan-speed: 30
     zoom-levels: [1]
     look: standard
-    fallback-anchor: none
+    fallback-anchor: auto
     max-health: 16
     clearance: 0
     model-scale: 1.0
@@ -241,7 +258,7 @@ types:
     pan-speed: 30
     zoom-levels: [1]
     look: standard
-    fallback-anchor: none
+    fallback-anchor: auto
     max-health: 20
     clearance: 0
     model-scale: 1.0
@@ -255,7 +272,7 @@ types:
     pan-speed: 40
     zoom-levels: [1, 2, 4]
     look: standard
-    fallback-anchor: none
+    fallback-anchor: auto
     max-health: 24
     clearance: 0
     model-scale: 1.0
@@ -269,7 +286,7 @@ types:
     pan-speed: 30
     zoom-levels: [1, 2]
     look: night_vision
-    fallback-anchor: creeper
+    fallback-anchor: auto
     max-health: 20
     clearance: 0
     model-scale: 1.0
@@ -284,9 +301,25 @@ types:
     pan-speed: 30
     zoom-levels: [1, 2]
     look: thermal
-    fallback-anchor: enderman
+    fallback-anchor: auto
     max-health: 20
     clearance: 2
+    model-scale: 1.0
+
+  # Your own model from Blockbench: copy the type below, point model.bbmodel at your file in plugins/CCTV/models/
+  example_bb:
+    name: "<aqua>Example bbmodel PTZ"
+    model: {bbmodel: "example_ptz.bbmodel", head: "cctv:camera_ptz_head", placer: "cctv:camera_ptz_item"}
+    ptz: true
+    fov: 70
+    pan: {min: -90, max: 90}
+    tilt: {min: -20, max: 60}
+    pan-speed: 40
+    zoom-levels: [1, 2, 4]
+    look: standard
+    fallback-anchor: auto
+    max-health: 24
+    clearance: 0
     model-scale: 1.0
 
 # MiniMessage. <prefix> is replaced by messages.prefix. Placeholders are listed per message.
@@ -357,6 +390,7 @@ messages:
   help-admin: "<gray> /cctv admin <dark_gray>(edit cameras, get placement items)"
   help-terminal: "<gray> /cctv terminal <give|group|clearance|remove|list>"
   help-zone: "<gray> /cctv zone <pos1|pos2|create|remove|list>"
+  help-zoom: "<gray> /cctv zoom <step> [player] <dark_gray>(0 = 1x)"
   help-reload: "<gray> /cctv reload"
   alert: "<prefix><red><bold>ALERT</bold></red> <white><zone></white> <gray>- <white><player></white> seen by <white><id></white> (<name>, network <group>)"
   terminal-place-top: "<prefix><red>Place the terminal on top of a block."

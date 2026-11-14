@@ -8,6 +8,11 @@ problems are in the player's `logs/latest.log`, not the server log.
 An old CCTV jar is still in `plugins/`. Paper loads the first jar with the same plugin name. Delete every
 `cctv-*.jar` except the new one, restart, and check the `Enabling CCTV v…` line.
 
+## CCTV is red in /plugins
+
+The log line above the plugin list says why. `Unsupported API version` means the jar is older than this fix (0.1.0
+from before 26.2 support): update it. CCTV supports Paper 26.2 and 26.3.
+
 ## Cameras, monitors or terminals are purple-black cubes
 
 The client doesn't have the CCTV pack. Check:
@@ -17,12 +22,16 @@ The client doesn't have the CCTV pack. Check:
   `pack.http.public-host` to the public address. The server log says if the HTTP server couldn't start (port in use).
 - `delivery: url`: `pack.url` must point at the **current** `plugins/CCTV/cctv-pack.zip` (re-upload after updates; the
   sha1 changes).
-- Client log `Error reading pack metadata`: the pack format doesn't match the client (CCTV is 26.3 only, format 97).
+- Client log `Error reading pack metadata` or the pack shown as incompatible: CCTV supports formats 88 (26.2) and 97
+  (26.3) only.
 
 ## No CCTV look (no scanlines/grain) when viewing
 
 - The pack isn't loaded for that player (see above). They get a chat message about it.
-- `effects.backend` is `none`, or `mob` (vanilla creeper/spider/enderman looks).
+- `effects.backend` is `none`.
+- On **26.2** the look comes from the mob backend: the pack's creeper/spider/invert overrides. If another pack also
+  overrides `assets/minecraft/post_effect/creeper.json` (etc.) with higher priority, you get that pack's look. Zoom,
+  static bursts and damaged-signal effects don't exist on 26.2.
 - OptiFine or Iris/Oculus with a shaderpack disables post effects. Turn the shaderpack off.
 
 ## Text looks wrong, or the HUD has no effects
@@ -63,6 +72,13 @@ player is still a spectator: `/cctv exit <player>`, or `/gamemode survival <play
 
 The CRT layer lives in the same text shader: see "Text looks wrong" above. The sentinel needs the exact 26.3
 palette, so pack formats for other Minecraft versions won't match.
+
+## Nobody sees the player's body while they watch a camera
+
+`view.body` (auto = FancyNpcs if installed, else Mannequin). The log says `FancyNpcs found: …` on start when the
+bridge bound. If it says `FancyNpcs body double failed (…)`, the reason follows and a Mannequin is used instead. With
+`view.body: none` the player simply vanishes while viewing (they are a spectator). FancyNpcs NPCs can be punched (that
+pulls the viewer out) but not shot or blown up (they aren't real entities); a Mannequin takes everything.
 
 ## Lag
 

@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "fi.alavesa"
-version = "0.1.0"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -13,7 +13,7 @@ repositories {
 
 dependencies {
     // Pinned to an exact stable build for reproducible builds. Bump the build number to move forward.
-    compileOnly("io.papermc.paper:paper-api:26.3.build.249-stable")
+    compileOnly("io.papermc.paper:paper-api:26.2.build.135-stable")
 }
 
 tasks.withType<JavaCompile>().configureEach {

@@ -115,7 +115,7 @@ public final class MonitorManager {
         this.store = new MonitorStore(plugin.getDataFolder().toPath().resolve("monitors.yml"), log);
         this.cache = new SnapshotCache(cfg.cacheTtlTicks);
         this.colors = new BlockColors(log);
-        this.renderer = new FeedRenderer(colors);
+        this.renderer = new FeedRenderer(new BlockLook(colors, log));
         this.monitorKey = new NamespacedKey(plugin, "monitor");
         this.placerKey = new NamespacedKey(plugin, "monitor_placer");
         this.partKey = new NamespacedKey(plugin, "part");
@@ -783,12 +783,13 @@ public final class MonitorManager {
             if (e.getPersistentDataContainer().has(partKey)) continue; // camera anchors, monitor parts
             if (e instanceof Player pl && pl.getGameMode() == GameMode.SPECTATOR) continue;
             if (e instanceof LivingEntity le && le.isInvisible()) continue;
-            int base;
-            if (e instanceof Player || e instanceof Mannequin) base = MapColors.SNOW;
-            else if (e instanceof Monster) base = MapColors.RED;
-            else if (e instanceof Animals || e instanceof LivingEntity) base = MapColors.LIME;
-            else if (e instanceof Item) base = MapColors.YELLOW;
-            else base = MapColors.LIGHT_GRAY;
+            int base; // silhouette colour by category
+            if (e instanceof Player || e instanceof Mannequin) base = 0xC9B8A6;
+            else if (e instanceof Monster) base = 0xB33A2E;
+            else if (e instanceof Animals) base = 0x8FA35A;
+            else if (e instanceof LivingEntity) base = 0x7FA0B0;
+            else if (e instanceof Item) base = 0xE0C040;
+            else base = 0x9A9A9A;
             BoundingBox b = e.getBoundingBox();
             out.add(new FeedRenderer.Ent(b.getMinX(), b.getMinY(), b.getMinZ(), b.getMaxX(), b.getMaxY(), b.getMaxZ(),
                     base));

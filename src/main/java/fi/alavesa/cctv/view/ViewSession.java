@@ -23,6 +23,8 @@ public final class ViewSession {
     Camera camera;
     @Nullable Entity anchor;
     @Nullable Entity body;
+    /** FancyNpcs body double (NPC name), when that is used instead of a Mannequin */
+    @Nullable String npcBody;
     long bodyChunk;
     @Nullable String bodyWorld;
 

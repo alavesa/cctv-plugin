@@ -164,8 +164,8 @@ monitors:
     high-mspt: 45
     low-mspt: 35
   # Monitor types. mount: WALL (place on a wall, width x height tiles) | DESK (1x1, place on top of a block)
-  # screen: flat (flat-panel TV/LCD: sharp picture, thin bezel, a multi-tile wall reads as ONE screen) | crt (curved
-  #   glass, scanlines, rolling bar, per-tile bezels like a wall of old monitors). Default flat, except green/amber.
+  # screen: crt (default: curved glass, scanlines, rolling bar, a bezel per tile like a wall of monitors) |
+  #   flat (flat-screen TV: sharp picture, one thin frame round the whole screen, blue no-signal screen)
   # style: color | green | amber | thermal (night-vision cameras show green, thermal cameras thermal, anyway)
   # model.bezel: item model of the frame; with model.edges: true it is a prefix and each tile uses <bezel>_<0..15>
   #   with only the screen's outer edges (bits 1 top, 2 bottom, 4 left, 8 right; see docs/ASSETS.md)
@@ -175,39 +175,27 @@ monitors:
       mount: DESK
       width: 1
       height: 1
-      screen: flat
       style: color
-      model: {bezel: "cctv:tv_desk"}
+      model: {bezel: "cctv:monitor_desk"}
     wall:
-      name: "<white>Wall TV"
+      name: "<white>Wall Monitor"
       mount: WALL
       width: 1
       height: 1
-      screen: flat
       style: color
-      model: {bezel: "cctv:tv_tile", edges: true, placer: "cctv:tv_wall_item"}
+      model: {bezel: "cctv:monitor_tile", placer: "cctv:monitor_wall_item"}
     wall_2x2:
-      name: "<white>Wall TV 2x2"
+      name: "<white>Monitor Wall 2x2"
       mount: WALL
       width: 2
       height: 2
-      screen: flat
       style: color
-      model: {bezel: "cctv:tv_tile", edges: true, placer: "cctv:tv_wall_item"}
+      model: {bezel: "cctv:monitor_tile", placer: "cctv:monitor_wall_item"}
     wall_3x2:
-      name: "<white>Wall TV 3x2"
+      name: "<white>Monitor Wall 3x2"
       mount: WALL
       width: 3
       height: 2
-      screen: flat
-      style: color
-      model: {bezel: "cctv:tv_tile", edges: true, placer: "cctv:tv_wall_item"}
-    crt_wall_2x2:
-      name: "<gray>CRT Monitor Wall 2x2"
-      mount: WALL
-      width: 2
-      height: 2
-      screen: crt
       style: color
       model: {bezel: "cctv:monitor_tile", placer: "cctv:monitor_wall_item"}
     green_crt:
@@ -215,9 +203,41 @@ monitors:
       mount: DESK
       width: 1
       height: 1
-      screen: crt
       style: green
       model: {bezel: "cctv:monitor_desk"}
+    # ---- flat-screen TVs ----
+    tv:
+      name: "<white>Flat-Screen TV"
+      mount: WALL
+      width: 1
+      height: 1
+      screen: flat
+      style: color
+      model: {bezel: "cctv:tv_tile", edges: true, placer: "cctv:tv_wall_item"}
+    tv_2x2:
+      name: "<white>Flat-Screen TV 2x2"
+      mount: WALL
+      width: 2
+      height: 2
+      screen: flat
+      style: color
+      model: {bezel: "cctv:tv_tile", edges: true, placer: "cctv:tv_wall_item"}
+    tv_3x2:
+      name: "<white>Flat-Screen TV 3x2"
+      mount: WALL
+      width: 3
+      height: 2
+      screen: flat
+      style: color
+      model: {bezel: "cctv:tv_tile", edges: true, placer: "cctv:tv_wall_item"}
+    tv_desk:
+      name: "<white>Desk TV"
+      mount: DESK
+      width: 1
+      height: 1
+      screen: flat
+      style: color
+      model: {bezel: "cctv:tv_desk"}
 
 terminals:
   model: "cctv:terminal"

@@ -51,6 +51,7 @@ public final class CctvPlugin extends JavaPlugin {
         getLogger().info("Post effects backend: " + views.effects().name());
         monitors = new MonitorManager(this, cameras, MonitorConfig.load(getConfig(), getLogger()));
         monitors.setViewStarter(cameras::startViewing);
+        monitors.setNpcBodies(views::npcBodies);
         monitors.load();
         terminals = new TerminalManager(this, cameras, () -> messages);
         terminals.config(getConfig());

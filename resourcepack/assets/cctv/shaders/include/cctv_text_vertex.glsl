@@ -45,4 +45,35 @@ vec3 cctv_gui_offset(vec3 position, vec4 color) {
 #endif
 }
 
+// MONITOR SCREENS (non-GUI): item-frame maps of an invisible frame lie in the same plane as the block face behind
+// them (and as the desk TV's back panel), so the two depth-fight and the wall "randomly" shows through the picture.
+// CCTV screens (the same corner sentinel as in cctv_text_fragment.glsl) are pulled toward the viewer by
+// CCTV_SCREEN_PULL blocks in view space, which wins the depth test at any distance up to ~150 blocks. Other maps and
+// all other text are untouched.
+const float CCTV_SCREEN_PULL = 0.03;
+
+#if !defined(IS_GUI) && !defined(IS_SEE_THROUGH)
+uniform sampler2D Sampler0;
+
+bool cctv_v_rgb(int x, int y, int rgb) {
+    ivec3 c = ivec3(round(texelFetch(Sampler0, ivec2(x, y), 0).rgb * 255.0));
+    return c == ivec3((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255);
+}
+
+vec4 cctv_screen_pull(vec4 view) {
+    if (textureSize(Sampler0, 0) != ivec2(128, 128)) return view;
+    bool rows0 = cctv_v_rgb(0, 0, 0x5E2872) && cctv_v_rgb(127, 0, 0x307370);
+    bool rows1 = cctv_v_rgb(0, 127, 0x5E2872) && cctv_v_rgb(127, 127, 0x307370);
+    if (!rows0 && !rows1) return view;
+    float d = length(view.xyz);
+    if (d < 0.001) return view;
+    view.xyz *= max(0.0, 1.0 - CCTV_SCREEN_PULL / d);
+    return view;
+}
+#else
+vec4 cctv_screen_pull(vec4 view) {
+    return view;
+}
+#endif
+
 #endif

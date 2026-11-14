@@ -105,7 +105,7 @@ for mask in range(16):
     model('tv_tile_%d' % mask, tv_frame(mask) or [box([0, 0, 16], [0.01, 0.01, 16.01], 'tvbezel')],
           ['tvbezel', 'led'], BLOCK_DISPLAY)
 # desk TV/monitor: slim panel (screen = the block's front face) on a neck and foot behind it
-TV_DESK = tv_frame(15) + [box([0, 0, 14.6], [16, 16, 16], 'tvback'),
+TV_DESK = tv_frame(15) + [box([0, 0, 14.6], [16, 16, 15.9], 'tvback'),
                           box([6.5, 0, 11], [9.5, 6, 14.6], 'tvback'),
                           box([4, 0, 7], [12, 0.6, 15], 'tvbezel')]
 model('tv_desk', TV_DESK, ['tvbezel', 'tvback', 'led'], BLOCK_DISPLAY)

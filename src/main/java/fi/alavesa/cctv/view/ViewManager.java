@@ -236,6 +236,17 @@ public final class ViewManager implements Listener, ViewBridge {
         return sessions.size();
     }
 
+    /** Viewers whose body double is a FancyNpcs NPC, with where it stands (the monitor feed draws them). */
+    public List<Map.Entry<Player, Location>> npcBodies() {
+        List<Map.Entry<Player, Location>> out = new ArrayList<>();
+        for (ViewSession s : sessions.values()) {
+            if (s.npcBody == null) continue;
+            Player p = Bukkit.getPlayer(s.player);
+            if (p != null) out.add(Map.entry(p, s.origin));
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------ tick
 
     private void tick() {

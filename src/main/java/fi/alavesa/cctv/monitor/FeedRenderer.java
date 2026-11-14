@@ -14,7 +14,8 @@ import org.bukkit.Material;
  *   <li>Minecraft-style face shading and smooth ambient occlusion at corners and edges;</li>
  *   <li>sky light (scaled by daylight) and block light from the snapshot;</li>
  *   <li>distance fog into a sky gradient; water is translucent with depth, glass slightly tinted;</li>
- *   <li>entities are shaded silhouettes by category; no name tags, particles or textures.</li>
+ *   <li>players, body doubles and Mannequins are player-shaped figures in their skin and armour ({@link Figure});
+ *   other entities are shaded boxes by category; no name tags or particles.</li>
  * </ul>
  * Pure function of its {@link Job}: no Bukkit calls, no shared mutable state.
  */
@@ -34,8 +35,9 @@ public final class FeedRenderer {
     public record Pose(double x, double y, double z, float yaw, float pitch, float fov, int look) {
     }
 
-    /** Entity bounding box and silhouette colour (0xRRGGBB). */
-    public record Ent(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, int rgb) {
+    /** Entity bounding box and silhouette colour (0xRRGGBB); a figure, when set, is drawn instead of the box. */
+    public record Ent(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, int rgb,
+                      @org.jspecify.annotations.Nullable Figure figure) {
     }
 
     /**
@@ -105,6 +107,7 @@ public final class FeedRenderer {
         private long lastKey = Long.MIN_VALUE;
         private ChunkSnapshot last;
         private final float[] sky = new float[3]; // scratch, reused for every pixel
+        private final Figure.Hit fig = new Figure.Hit();
 
         Walker(Job job, BlockLook look, Pose p, Ent[] ents) {
             this.job = job;
@@ -136,14 +139,22 @@ public final class FeedRenderer {
             double max = job.maxDistance;
             double entT = max;
             Ent ent = null;
-            int entAxis = 1;
+            int entAxis = 1, entRgb = 0;
             for (Ent e : ents) {
                 double[] hit = slab(dx, dy, dz, e);
-                if (hit != null && hit[0] < entT) {
+                if (hit == null || hit[0] >= entT) continue;
+                if (e.figure() == null) {
                     entT = hit[0];
-                    ent = e;
                     entAxis = (int) hit[1];
+                    entRgb = e.rgb();
+                } else if (e.figure().hit(p.x, p.y, p.z, dx, dy, dz, entT, fig)) {
+                    entT = fig.t;
+                    entAxis = fig.axis;
+                    entRgb = fig.rgb;
+                } else {
+                    continue;
                 }
+                ent = e;
             }
             int x = (int) Math.floor(p.x), y = (int) Math.floor(p.y), z = (int) Math.floor(p.z);
             int stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1, stepZ = dz > 0 ? 1 : -1;
@@ -179,7 +190,7 @@ public final class FeedRenderer {
                     axis = 2;
                 }
                 if (ent != null && t >= entT) {
-                    entity(ent, entAxis, dy, entT, out);
+                    entity(ent, entAxis, entRgb, dy, entT, out);
                     break;
                 }
                 if (t > max) {
@@ -343,7 +354,7 @@ public final class FeedRenderer {
             out[2] = (hb + (zb - hb) * up) * d + 0.06f;
         }
 
-        private void entity(Ent e, int axis, double dy, double t, float[] out) {
+        private void entity(Ent e, int axis, int rgb, double dy, double t, float[] out) {
             if (p.look == 2) { // thermal: bodies glow
                 out[0] = out[1] = out[2] = 0.97f;
                 return;
@@ -354,9 +365,9 @@ public final class FeedRenderer {
             float s = faceF * (AMBIENT + (1 - AMBIENT) * Math.max(l, 0.35f));
             float fog = fog(t);
             horizon(sky);
-            out[0] = (e.rgb >> 16 & 255) / 255f * s * (1 - fog) + sky[0] * fog;
-            out[1] = (e.rgb >> 8 & 255) / 255f * s * (1 - fog) + sky[1] * fog;
-            out[2] = (e.rgb & 255) / 255f * s * (1 - fog) + sky[2] * fog;
+            out[0] = (rgb >> 16 & 255) / 255f * s * (1 - fog) + sky[0] * fog;
+            out[1] = (rgb >> 8 & 255) / 255f * s * (1 - fog) + sky[1] * fog;
+            out[2] = (rgb & 255) / 255f * s * (1 - fog) + sky[2] * fog;
         }
 
         private void nightVision(float[] c) {

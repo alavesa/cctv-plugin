@@ -100,6 +100,8 @@ public final class MonitorManager {
     private int governor;
     private double budgetUsedMs;
     private PlacementHook viewStarter = (p, cameraId) -> false;
+    private java.util.function.Supplier<List<Map.Entry<Player, Location>>> npcBodies = List::of;
+    private final Skins skins;
 
     /** How a monitor click opens a feed (the view manager), kept as a hook to avoid a package cycle. */
     @FunctionalInterface
@@ -110,6 +112,7 @@ public final class MonitorManager {
     public MonitorManager(Plugin plugin, CameraManager cameras, MonitorConfig cfg) {
         this.plugin = plugin;
         this.log = plugin.getLogger();
+        this.skins = new Skins(log);
         this.cameras = cameras;
         this.cfg = cfg;
         this.store = new MonitorStore(plugin.getDataFolder().toPath().resolve("monitors.yml"), log);
@@ -120,6 +123,11 @@ public final class MonitorManager {
         this.placerKey = new NamespacedKey(plugin, "monitor_placer");
         this.partKey = new NamespacedKey(plugin, "part");
         this.pool = newPool(cfg.threads);
+    }
+
+    /** FancyNpcs body doubles (viewer, where the NPC stands); set by the plugin, empty without FancyNpcs. */
+    public void setNpcBodies(java.util.function.Supplier<List<Map.Entry<Player, Location>>> bodies) {
+        this.npcBodies = bodies;
     }
 
     public void setViewStarter(PlacementHook hook) {
@@ -784,18 +792,66 @@ public final class MonitorManager {
             if (e.getPersistentDataContainer().has(partKey)) continue; // camera anchors, monitor parts
             if (e instanceof Player pl && pl.getGameMode() == GameMode.SPECTATOR) continue;
             if (e instanceof LivingEntity le && le.isInvisible()) continue;
+            if (e instanceof Player pl) {
+                out.add(figure(pl.getLocation(), pl.getBodyYaw(), skins.of(pl.getPlayerProfile().getProperties()),
+                        pl.getEquipment()));
+                continue;
+            }
+            if (e instanceof Mannequin mq) {
+                out.add(figure(mq.getLocation(), mq.getBodyYaw(), skins.of(mq.getProfile()),
+                        mq.getEquipment()));
+                continue;
+            }
             int base; // silhouette colour by category
-            if (e instanceof Player || e instanceof Mannequin) base = 0xC9B8A6;
-            else if (e instanceof Monster) base = 0xB33A2E;
+            if (e instanceof Monster) base = 0xB33A2E;
             else if (e instanceof Animals) base = 0x8FA35A;
             else if (e instanceof LivingEntity) base = 0x7FA0B0;
             else if (e instanceof Item) base = 0xE0C040;
             else base = 0x9A9A9A;
             BoundingBox b = e.getBoundingBox();
             out.add(new FeedRenderer.Ent(b.getMinX(), b.getMinY(), b.getMinZ(), b.getMaxX(), b.getMaxY(), b.getMaxZ(),
-                    base));
+                    base, null));
+        }
+        // FancyNpcs body doubles are client-side NPCs (no server entity): draw the viewer where they stand
+        for (Map.Entry<Player, Location> b : npcBodies.get()) {
+            Location at = b.getValue();
+            if (at.getWorld() != w || at.distanceSquared(eye) > d * d) continue;
+            Player pl = b.getKey();
+            out.add(figure(at, at.getYaw(), skins.of(pl.getPlayerProfile().getProperties()), pl.getEquipment()));
         }
         return out.toArray(new FeedRenderer.Ent[0]);
+    }
+
+    private static FeedRenderer.Ent figure(Location at, float bodyYaw, int[] skin,
+                                           org.bukkit.inventory.@org.jspecify.annotations.Nullable EntityEquipment eq) {
+        int[] armour = new int[4];
+        if (eq != null) {
+            armour[0] = armourRgb(eq.getHelmet());
+            armour[1] = armourRgb(eq.getChestplate());
+            armour[2] = armourRgb(eq.getLeggings());
+            armour[3] = armourRgb(eq.getBoots());
+        }
+        Figure f = new Figure(at.getX(), at.getY(), at.getZ(), bodyYaw, skin, armour);
+        double r = Figure.RADIUS;
+        return new FeedRenderer.Ent(at.getX() - r, at.getY(), at.getZ() - r, at.getX() + r,
+                at.getY() + Figure.HEIGHT, at.getZ() + r, 0, f);
+    }
+
+    /** Colour of a worn armour piece (leather: its dye), 0 for none or for things that aren't armour. */
+    private static int armourRgb(@org.jspecify.annotations.Nullable ItemStack it) {
+        if (it == null || it.isEmpty()) return 0;
+        String n = it.getType().name();
+        if (n.startsWith("LEATHER_") && it.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta lm) {
+            return lm.getColor().asRGB();
+        }
+        if (n.startsWith("CHAINMAIL_")) return 0x8C8E92;
+        if (n.startsWith("IRON_")) return 0xC9CBCE;
+        if (n.startsWith("GOLDEN_")) return 0xE6C34A;
+        if (n.startsWith("DIAMOND_")) return 0x52D6D0;
+        if (n.startsWith("NETHERITE_")) return 0x4B4547;
+        if (n.startsWith("COPPER_")) return 0xB8694A;
+        if (n.equals("TURTLE_HELMET")) return 0x4E9B3A;
+        return 0;
     }
 
     private static float daylight(World w) {

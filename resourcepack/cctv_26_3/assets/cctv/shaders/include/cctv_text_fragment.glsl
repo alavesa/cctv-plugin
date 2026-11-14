@@ -140,20 +140,31 @@ vec3 cctv_soft(sampler2D tex, ivec2 p, float amount) {
     return mix(img, blur, amount);
 }
 
+// The blue "no signal" screen of a flat TV, with a faint drifting shimmer so it reads as a lit panel.
+vec3 cctv_flat_blue(ivec2 p, float t) {
+    return FLAT_NO_SIGNAL * (0.94 + 0.06 * cctv_hash(vec2(p / 4) + floor(t * 6.0) * vec2(3.0, 5.0)));
+}
+
 // Flat panel: square pixels, no curve/scanlines/roll/vignette, self-lit, blue no-signal screen, digital break-up.
+// The server's text frames (STANDBY, CAMERA OFFLINE, POWER FAILURE, BOOTING) have a dark background (map colour
+// 0x0D0D0D, Screen.BACKGROUND); on a TV that background is the blue screen and the text stays on top.
 vec4 cctv_flat(sampler2D tex, vec2 uv, ivec3 state, ivec3 style, float t) {
     if (cctv_rgb(state, 0x111111)) return vec4(vec3(0.012, 0.012, 0.016), 1.0); // OFF: black glass
     ivec2 p = clamp(ivec2(uv * 128.0), ivec2(1), ivec2(126));
     vec3 img = cctv_soft(tex, p, FLAT_SOFT);
     float textMask = step(0.6, dot(img, vec3(0.333)));
+    bool bg = cctv_rgb(cctv_px(tex, p.x, p.y), 0x0D0D0D);
     vec3 col;
     if (cctv_rgb(state, 0xB4B4B4)) {
-        col = mix(FLAT_NO_SIGNAL, vec3(1.0), textMask);           // NO SIGNAL
+        col = mix(cctv_flat_blue(p, t), vec3(1.0), textMask);     // NO SIGNAL
     } else if (cctv_rgb(state, 0x878787)) {
-        col = img;                                                  // OFFLINE: the server's text frame
+        col = bg ? cctv_flat_blue(p, t) : img;                      // OFFLINE: blue screen + the server's text
     } else if (cctv_rgb(state, 0x191919)) {
-        float phase = fract(t / CRT_BOOT_SECONDS);                  // BOOT: backlight up, then the picture
-        col = vec3(0.05, 0.05, 0.07) * smoothstep(0.0, 0.3, phase) + img * smoothstep(0.45, 0.8, phase);
+        float phase = fract(t / CRT_BOOT_SECONDS);                  // BOOT: backlight up, then the blue screen
+        col = vec3(0.05, 0.05, 0.07) * smoothstep(0.0, 0.3, phase)
+                + (bg ? cctv_flat_blue(p, t) : img) * smoothstep(0.45, 0.8, phase);
+    } else if (cctv_rgb(state, 0xDCDCDC) && bg) {
+        col = cctv_flat_blue(p, t);                                 // STANDBY: blue screen + the server's text
     } else if (cctv_rgb(state, 0xDCDCDC)) {
         // STATIC: frozen macroblocks of the last picture, some smeared, some dropped to grey noise
         ivec2 b = ivec2(floor(vec2(p) / FLAT_BLOCK));

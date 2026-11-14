@@ -75,9 +75,17 @@ public final class MonitorConfig {
 
         Map<String, Type> t = new LinkedHashMap<>();
         ConfigurationSection ts = c.getConfigurationSection(p + "types");
-        if (ts != null) {
-            for (String k : ts.getKeys(false)) {
-                ConfigurationSection s = ts.getConfigurationSection(k);
+        // built-in types added in later versions (e.g. the 0.3.0 TVs) come from the jar's defaults until the server's
+        // config.yml defines a type of the same name
+        ConfigurationSection defs = c.getDefaults() == null ? null
+                : c.getDefaults().getConfigurationSection(p + "types");
+        Map<String, ConfigurationSection> sections = new LinkedHashMap<>();
+        if (ts != null) for (String k : ts.getKeys(false)) sections.put(k, ts.getConfigurationSection(k));
+        if (defs != null) for (String k : defs.getKeys(false)) sections.putIfAbsent(k, defs.getConfigurationSection(k));
+        {
+            for (Map.Entry<String, ConfigurationSection> en : sections.entrySet()) {
+                String k = en.getKey();
+                ConfigurationSection s = en.getValue();
                 if (s == null) continue;
                 String key = k.toLowerCase(Locale.ROOT);
                 Mount mount;
@@ -93,25 +101,13 @@ public final class MonitorConfig {
                     w = h = 1;
                 }
                 int style = style(s.getString("style", "color"));
-                // default: flat panel, except green/amber phosphor screens, which only make sense as CRTs
                 // contains(path, true): only what the server's file says, not the jar's default config
-                boolean flat = !(s.contains("screen", true) ? s.getString("screen", "flat")
-                        : style == 1 || style == 2 ? "crt" : "flat").equalsIgnoreCase("crt");
+                boolean flat = s.contains("screen", true) && s.getString("screen", "crt").equalsIgnoreCase("flat");
                 String bezelName = s.getString("model.bezel", flat ? (mount == Mount.DESK ? "cctv:tv_desk"
                         : "cctv:tv_tile") : mount == Mount.DESK ? "cctv:monitor_desk" : "cctv:monitor_tile");
+                boolean edges = s.contains("model.edges", true) ? s.getBoolean("model.edges")
+                        : bezelName.equals("cctv:tv_tile");
                 String placerName = s.getString("model.placer", "");
-                boolean explicitEdges = s.contains("model.edges", true);
-                boolean edges = explicitEdges ? s.getBoolean("model.edges") : bezelName.equals("cctv:tv_tile");
-                if (flat && !explicitEdges) {
-                    // configs from 0.2.0 and older name the CRT models; a flat screen gets the TV ones
-                    if (bezelName.equals("cctv:monitor_tile")) {
-                        bezelName = "cctv:tv_tile";
-                        edges = true;
-                        if (placerName.equals("cctv:monitor_wall_item")) placerName = "cctv:tv_wall_item";
-                    } else if (bezelName.equals("cctv:monitor_desk")) {
-                        bezelName = "cctv:tv_desk";
-                    }
-                }
                 if (placerName.isBlank()) placerName = edges ? "cctv:tv_wall_item" : bezelName;
                 NamespacedKey bezel = key(bezelName);
                 NamespacedKey placer = key(placerName);

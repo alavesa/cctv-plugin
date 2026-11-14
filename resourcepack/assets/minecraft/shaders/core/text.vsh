@@ -31,7 +31,7 @@ out vec2 texCoord0;
 void main() {
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
     // ===== CCTV BEGIN =====
-    gl_Position = ProjMat * ModelViewMat * vec4(Position + cctv_gui_offset(Position, Color), 1.0);
+    gl_Position = ProjMat * cctv_screen_pull(ModelViewMat * vec4(Position + cctv_gui_offset(Position, Color), 1.0));
     // ===== CCTV END =====
 
 #if !defined(IS_GUI) && !defined(IS_SEE_THROUGH)

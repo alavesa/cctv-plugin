@@ -236,6 +236,31 @@ public final class ViewManager implements Listener, ViewBridge {
         return sessions.size();
     }
 
+    private long sweepClock;
+    private final java.util.Set<String> peacefulWarned = new java.util.HashSet<>();
+
+    /**
+     * Every 10 s: body doubles no viewer owns are removed (Mannequins tagged as bodies, FancyNpcs NPCs with our
+     * prefix). They can be left by a crash, a plugin reload or a removal that raced with FancyNpcs' own tasks.
+     */
+    private void sweepStrayBodies() {
+        java.util.Set<UUID> bodies = new java.util.HashSet<>();
+        java.util.Set<String> npcs = new java.util.HashSet<>();
+        for (ViewSession s : sessions.values()) {
+            if (s.bodyId != null) bodies.add(s.bodyId);
+            if (s.npcBody != null) npcs.add(s.npcBody);
+        }
+        for (World w : Bukkit.getWorlds()) {
+            for (Mannequin m : w.getEntitiesByClass(Mannequin.class)) {
+                if ("body".equals(m.getPersistentDataContainer().get(cameras.keys().part, PersistentDataType.STRING))
+                        && !bodies.contains(m.getUniqueId())) {
+                    m.remove();
+                }
+            }
+        }
+        NpcBody.purgeOrphans(npcs, plugin.getLogger());
+    }
+
     /** Viewers whose body double is a FancyNpcs NPC, with where it stands (the monitor feed draws them). */
     public List<Map.Entry<Player, Location>> npcBodies() {
         List<Map.Entry<Player, Location>> out = new ArrayList<>();
@@ -250,6 +275,7 @@ public final class ViewManager implements Listener, ViewBridge {
     // ------------------------------------------------------------------ tick
 
     private void tick() {
+        if (++sweepClock % 200 == 0) sweepStrayBodies();
         if (sessions.isEmpty()) return;
         for (ViewSession s : List.copyOf(sessions.values())) {
             Player p = Bukkit.getPlayer(s.player);
@@ -557,6 +583,16 @@ public final class ViewManager implements Listener, ViewBridge {
         World w = eye.getWorld();
         Class<? extends LivingEntity> mob = effects.name().equals("mob")
                 ? mobClass(c.type().fallbackAnchor(), c.type().look()) : null;
+        if (mob != null && w.getDifficulty() == org.bukkit.Difficulty.PEACEFUL
+                && org.bukkit.entity.Monster.class.isAssignableFrom(mob)) {
+            // peaceful refuses to spawn monsters (and removes them every tick): view without the mob-shader look
+            if (peacefulWarned.add(w.getName())) {
+                plugin.getLogger().warning("World " + w.getName() + " is on peaceful difficulty: the 26.2 camera "
+                        + "looks need a creeper/spider/enderman anchor, which peaceful doesn't allow. Cameras there "
+                        + "show without the look (use difficulty easy or higher, or a 26.3 server).");
+            }
+            mob = null;
+        }
         Entity e;
         if (mob != null) {
             LivingEntity le = w.spawn(eye, mob, m -> {
@@ -569,10 +605,22 @@ public final class ViewManager implements Listener, ViewBridge {
                 m.setRemoveWhenFarAway(false);
                 anchorCommon(m);
             });
-            // the camera sits at the entity's eyes, so lower the mob by its eye height
-            le.teleport(eye.clone().subtract(0, le.getEyeHeight(), 0));
-            e = le;
+            if (le.isValid()) {
+                // the camera sits at the entity's eyes, so lower the mob by its eye height
+                le.teleport(eye.clone().subtract(0, le.getEyeHeight(), 0));
+                e = le;
+            } else {
+                // a region/anti-mob plugin cancelled the spawn: view without the mob-shader look
+                if (peacefulWarned.add("cancel:" + w.getName())) {
+                    plugin.getLogger().warning("A plugin cancelled the " + mob.getSimpleName() + " camera anchor in "
+                            + w.getName() + " (mob spawning denied?); cameras there show without the 26.2 look.");
+                }
+                e = null;
+            }
         } else {
+            e = null;
+        }
+        if (e == null) {
             e = w.spawn(eye, ItemDisplay.class, d -> {
                 d.setTeleportDuration(2);
                 d.setViewRange(0.01f);
@@ -642,6 +690,7 @@ public final class ViewManager implements Listener, ViewBridge {
             m.getPersistentDataContainer().set(cameras.keys().part, PersistentDataType.STRING, "body");
         });
         s.body = body;
+        s.bodyId = body.getUniqueId();
         ticket(s, at);
     }
 
@@ -655,7 +704,10 @@ public final class ViewManager implements Listener, ViewBridge {
 
     private void removeBody(ViewSession s) {
         if (s.body != null) s.body.remove();
+        Entity byId = s.bodyId == null ? null : Bukkit.getEntity(s.bodyId);
+        if (byId != null) byId.remove();
         s.body = null;
+        s.bodyId = null;
         NpcBody.remove(s.npcBody, plugin.getLogger());
         s.npcBody = null;
         if (s.bodyWorld == null) return;
@@ -793,7 +845,7 @@ public final class ViewManager implements Listener, ViewBridge {
         if (!part.equals("body")) return;
         e.setCancelled(true);
         for (ViewSession s : sessions.values()) {
-            if (s.body == hurt && !s.ending()) {
+            if (s.bodyId != null && s.bodyId.equals(hurt.getUniqueId()) && !s.ending()) {
                 s.pendingDamage = e.getDamage();
                 s.pendingSource = e.getDamageSource();
                 end(s, Reason.DAMAGED, cfg.lostTicks);

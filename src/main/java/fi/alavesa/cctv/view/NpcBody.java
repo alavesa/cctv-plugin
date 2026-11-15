@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -40,6 +41,8 @@ final class NpcBody {
 
     private static boolean bound;
     private static Object plugin;
+    private static @Nullable Plugin owner;
+    private static @Nullable Method saveToFile, removeFor;
     private static Method adapter, manager, register, removeNpc, getNpc, create, spawnAll, removeAll, getAll, getData,
             dataName, setSkinData, setName, setTab, setTurn, setEquip;
     private static Constructor<?> dataCtor, skinCtor;
@@ -54,6 +57,7 @@ final class NpcBody {
     @SuppressWarnings({"unchecked", "rawtypes"})
     static boolean bind(Plugin owner, BiConsumer<Player, String> onHit) {
         Logger log = owner.getLogger();
+        NpcBody.owner = owner;
         if (Bukkit.getPluginManager().getPlugin("FancyNpcs") == null) return false;
         try {
             Class<?> pluginClass = Class.forName("de.oliver.fancynpcs.api.FancyNpcsPlugin");
@@ -83,6 +87,18 @@ final class NpcBody {
             removeNpc = mgr.getMethod("removeNpc", npc);
             getNpc = mgr.getMethod("getNpc", String.class);
             getAll = mgr.getMethod("getAllNpcs");
+            // optional: don't let FancyNpcs save our doubles to its npcs file (they'd come back after a restart),
+            // and a per-player remove for the second, delayed removal pass
+            try {
+                saveToFile = npc.getMethod("setSaveToFile", boolean.class);
+            } catch (NoSuchMethodException e) {
+                saveToFile = null;
+            }
+            try {
+                removeFor = npc.getMethod("remove", Player.class);
+            } catch (NoSuchMethodException e) {
+                removeFor = null;
+            }
             bound = true;
         } catch (Throwable t) {
             log.warning("FancyNpcs is installed but its API didn't bind (" + t + "); body doubles use Mannequins");
@@ -113,7 +129,9 @@ final class NpcBody {
         } catch (Throwable t) {
             log.warning("FancyNpcs NpcInteractEvent not found (" + t + "); hits on NPC doubles won't register");
         }
-        purgeOrphans(log);
+        purgeOrphans(Set.of(), log);
+        // FancyNpcs loads its saved NPCs after the server has started: purge again once it has
+        Bukkit.getScheduler().runTaskLater(owner, () -> purgeOrphans(Set.of(), log), 100);
         log.info("FancyNpcs found: camera viewers leave a player-model NPC behind");
         return true;
     }
@@ -146,6 +164,7 @@ final class NpcBody {
             }
             if (!gear.isEmpty()) setEquip.invoke(data, gear);
             Object npc = ((java.util.function.Function<Object, Object>) adapter.invoke(plugin)).apply(data);
+            if (saveToFile != null) saveToFile.invoke(npc, false);
             create.invoke(npc);
             register.invoke(manager.invoke(plugin), npc);
             spawnAll.invoke(npc);
@@ -165,24 +184,42 @@ final class NpcBody {
             Object mgr = manager.invoke(plugin);
             Object npc = live.remove(name);
             if (npc == null) npc = getNpc.invoke(mgr, name);
-            if (npc != null) {
-                removeAll.invoke(npc);
-                removeNpc.invoke(mgr, npc);
-            }
+            if (npc != null) despawn(mgr, npc);
         } catch (Throwable t) {
             log.warning("FancyNpcs body double removal failed: " + t);
         }
     }
 
-    /** Removes doubles left over from a crash. Only our prefix is touched. */
-    private static void purgeOrphans(Logger log) {
+    /**
+     * Unregisters FIRST (so FancyNpcs' visibility task can't show it to anyone again), then hides it from everyone,
+     * and once more a second later: a spawn packet that FancyNpcs' async task was already sending when we removed it
+     * would otherwise leave a copy of the player on those clients until they relog.
+     */
+    private static void despawn(Object mgr, Object npc) throws ReflectiveOperationException {
+        removeNpc.invoke(mgr, npc);
+        removeAll.invoke(npc);
+        if (owner == null || !owner.isEnabled()) return;
+        Bukkit.getScheduler().runTaskLater(owner, () -> {
+            try {
+                removeAll.invoke(npc);
+                if (removeFor != null) for (Player p : Bukkit.getOnlinePlayers()) removeFor.invoke(npc, p);
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+                // already gone
+            }
+        }, 20);
+    }
+
+    /** Removes our doubles that no viewer owns (left by a crash, a restart or a lost race). */
+    static void purgeOrphans(Set<String> active, Logger log) {
+        if (!bound) return;
         try {
             Object mgr = manager.invoke(plugin);
             for (Object npc : new ArrayList<>((Collection<?>) getAll.invoke(mgr))) {
                 Object name = dataName.invoke(getData.invoke(npc));
-                if (name instanceof String s && s.startsWith(PREFIX)) {
-                    removeAll.invoke(npc);
-                    removeNpc.invoke(mgr, npc);
+                if (name instanceof String s && s.startsWith(PREFIX) && !active.contains(s)) {
+                    live.remove(s);
+                    despawn(mgr, npc);
+                    log.fine("removed stray body double " + s);
                 }
             }
         } catch (Throwable t) {

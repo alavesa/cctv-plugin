@@ -36,12 +36,13 @@ final class MonitorStore {
         this.log = log;
     }
 
-    record Loaded(List<Monitor> monitors, int nextId) {
+    /** released: map ids of removed monitors whose files are deleted again after saves ({@link MapFiles}) */
+    record Loaded(List<Monitor> monitors, int nextId, List<Integer> released) {
     }
 
     Loaded load(Map<String, MonitorConfig.Type> types) {
         List<Monitor> out = new ArrayList<>();
-        if (!Files.exists(file) || types.isEmpty()) return new Loaded(out, 1);
+        if (!Files.exists(file) || types.isEmpty()) return new Loaded(out, 1, List.of());
         YamlConfiguration y = YamlConfiguration.loadConfiguration(file.toFile());
         ConfigurationSection ms = y.getConfigurationSection("monitors");
         if (ms != null) {
@@ -65,12 +66,13 @@ final class MonitorStore {
                 }
             }
         }
-        return new Loaded(out, Math.max(1, y.getInt("next-id", out.size() + 1)));
+        return new Loaded(out, Math.max(1, y.getInt("next-id", out.size() + 1)), y.getIntegerList("released-maps"));
     }
 
-    String serialise(Collection<Monitor> monitors, int nextId) {
+    String serialise(Collection<Monitor> monitors, int nextId, Collection<Integer> released) {
         YamlConfiguration y = new YamlConfiguration();
         y.set("next-id", nextId);
+        if (!released.isEmpty()) y.set("released-maps", new ArrayList<>(released));
         for (Monitor m : monitors) {
             String p = "monitors." + m.id + ".";
             y.set(p + "type", m.typeKey);

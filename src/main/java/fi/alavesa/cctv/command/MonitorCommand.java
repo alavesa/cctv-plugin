@@ -26,7 +26,7 @@ import org.jspecify.annotations.Nullable;
 final class MonitorCommand {
 
     static final List<String> SUBS = List.of("give", "bind", "cycle", "mode", "quad", "power", "remove", "list",
-            "info");
+            "info", "cleanmaps");
 
     private final MonitorManager monitors;
     private final CameraManager cameras;
@@ -51,6 +51,7 @@ final class MonitorCommand {
             case "remove" -> remove(s, r);
             case "info" -> info(s, r);
             case "list" -> list(s);
+            case "cleanmaps" -> cleanMaps(s, r);
             default -> msg(s, "usage", Messages.p("usage", "/cctv monitor <" + String.join("|", SUBS) + ">"));
         }
     }
@@ -167,6 +168,28 @@ final class MonitorCommand {
         msg(s, "monitor-removed", Messages.p("id", m.id()));
     }
 
+    /** Lists (or with "confirm" deletes) map files of monitors removed by older versions. */
+    private void cleanMaps(CommandSender s, String[] a) {
+        if (!s.hasPermission("cctv.command.monitor.cleanmaps")) {
+            s.sendMessage(Component.text("You don't have permission to delete map files.", NamedTextColor.RED));
+            return;
+        }
+        List<Integer> ids = monitors.orphanMaps();
+        if (ids.isEmpty()) {
+            s.sendMessage(Component.text("No unused CCTV map files found.", NamedTextColor.GRAY));
+            return;
+        }
+        String list = ids.size() > 30 ? ids.subList(0, 30) + " ..." : ids.toString();
+        if (a.length == 0 || !a[0].equalsIgnoreCase("confirm")) {
+            s.sendMessage(Component.text(ids.size() + " unused CCTV map file(s): " + list, NamedTextColor.YELLOW));
+            s.sendMessage(Component.text("These are blank, locked screen maps no monitor uses. Delete them with "
+                    + "/cctv monitor cleanmaps confirm", NamedTextColor.GRAY));
+            return;
+        }
+        int n = monitors.deleteOrphanMaps(ids);
+        s.sendMessage(Component.text("Deleted " + n + " unused CCTV map file(s).", NamedTextColor.GREEN));
+    }
+
     private void info(CommandSender s, String[] a) {
         Monitor m = target(s, a.length > 0 ? a[0] : "here");
         if (m == null) return;
@@ -250,6 +273,7 @@ final class MonitorCommand {
                     : pos == 2 ? filter(Stream.of("live", "snapshot", "shader", "quad"), cur) : List.of();
             case "power" -> pos == 1 ? filter(ids, cur) : pos == 2 ? filter(Stream.of("on", "off"), cur) : List.of();
             case "remove", "info" -> pos == 1 ? filter(ids, cur) : List.of();
+            case "cleanmaps" -> pos == 1 ? filter(Stream.of("confirm"), cur) : List.of();
             default -> List.of();
         };
     }

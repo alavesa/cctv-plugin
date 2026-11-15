@@ -23,6 +23,8 @@ public final class ViewSession {
     Camera camera;
     @Nullable Entity anchor;
     @Nullable Entity body;
+    /** the Mannequin double's id: entity objects can be replaced, the id can't */
+    java.util.@Nullable UUID bodyId;
     /** FancyNpcs body double (NPC name), when that is used instead of a Mannequin */
     @Nullable String npcBody;
     long bodyChunk;

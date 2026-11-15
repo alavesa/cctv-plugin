@@ -110,3 +110,16 @@ the player needs `cctv.clearance.<n>` for that level or higher (or `cctv.clearan
 
 Server: anything with `[CCTV]`. Client: `logs/latest.log` lines about `cctv:` (missing files, shader errors, pack
 errors). Include both, plus `/cctv pack` and `/cctv perf` output, when reporting a problem.
+
+## 26.2: "World ... is on peaceful difficulty" / the camera look is missing
+
+On 26.2, the camera look (standard, night vision, thermal) comes from an invisible creeper, spider or enderman that
+the viewer spectates. Peaceful difficulty doesn't allow monsters, and a region plugin that denies mob spawning
+cancels them too. CCTV then shows the camera without the look and logs a warning. Use easy or higher difficulty,
+allow the spawn in that region, or run 26.3, where the look comes from server post effects.
+
+## A copy of the player stays after leaving the camera
+
+Fixed in 0.5.1. FancyNpcs body doubles are no longer saved to FancyNpcs' npcs file. They are unregistered before
+being hidden, and hidden again a second later. Every 10 s, any body double (Mannequin or NPC) that no viewer owns is
+removed. A copy a client still shows from an older version goes away when that player rejoins.

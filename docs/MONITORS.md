@@ -106,6 +106,17 @@ Estimates (64 px per block, 48-block view, one render thread):
 The **governor** watches mspt every 2 s. Above `governor.high-mspt` it steps: (1) half the frame rate, (2) half the
 resolution, (3) snapshot mode. Below `low-mspt` it steps back.
 
+## Map files
+
+Every monitor tile is one map (`<save>/data/minecraft/maps/<id>.dat`). The ids are kept for the monitor's life,
+so restarts don't create new maps. When a monitor is removed, its map files are deleted at once. The ids are also
+noted in monitors.yml (`released-maps`) and deleted again after each world save and at startup, in case the server
+had the map in memory and saved it again.
+
+Monitors removed by versions before 0.5.1 left their map files behind. `/cctv monitor cleanmaps` lists map files
+that look exactly like CCTV screens (locked, no position tracking, no saved pixels, no banners) and that no monitor
+uses. `/cctv monitor cleanmaps confirm` deletes them. Permission: `cctv.command.monitor.cleanmaps` (op).
+
 ## Verified, unverified, limitations
 
 - CLIENT-VERIFIED (26.3 rig, 2026-11-14): a 2×2 wall, a quad monitor, a NO SIGNAL monitor and a green desk CRT

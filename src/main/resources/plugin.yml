@@ -47,6 +47,7 @@ permissions:
       cctv.command.exit: true
       cctv.command.pack: true
       cctv.command.monitor: true
+      cctv.command.monitor.cleanmaps: true
       cctv.command.perf: true
       cctv.command.browse: true
       cctv.command.admin: true
@@ -72,6 +73,7 @@ permissions:
   cctv.command.exit: {default: op, description: "/cctv exit: end a camera feed"}
   cctv.command.pack: {default: op, description: "/cctv pack: pack status per player, re-send the pack"}
   cctv.command.monitor: {default: op, description: "/cctv monitor: give, bind, cycle, quad, mode, power, remove"}
+  cctv.command.monitor.cleanmaps: {default: op, description: "/cctv monitor cleanmaps: delete map files of old, removed monitors"}
   cctv.command.perf: {default: op, description: "/cctv perf: feed renderer cost per monitor"}
   cctv.command.browse: {default: op, description: "/cctv browse: the camera browser anywhere (terminals don't need this)"}
   cctv.command.admin: {default: op, description: "/cctv admin: edit cameras in a GUI, get placement items; open menus for others"}

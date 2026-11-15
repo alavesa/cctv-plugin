@@ -102,6 +102,7 @@ public final class MonitorManager {
     private PlacementHook viewStarter = (p, cameraId) -> false;
     private java.util.function.Supplier<List<Map.Entry<Player, Location>>> npcBodies = List::of;
     private final Skins skins;
+    private final MapFiles mapFiles;
     /** walking animation per figure: last x, z, tick sampled, limb position, limb amount */
     private final Map<UUID, double[]> walk = new HashMap<>();
     /** tick of each player's last arm swing */
@@ -117,6 +118,7 @@ public final class MonitorManager {
         this.plugin = plugin;
         this.log = plugin.getLogger();
         this.skins = new Skins(log);
+        this.mapFiles = new MapFiles(log);
         this.cameras = cameras;
         this.cfg = cfg;
         this.store = new MonitorStore(plugin.getDataFolder().toPath().resolve("monitors.yml"), log);
@@ -154,6 +156,7 @@ public final class MonitorManager {
         MonitorStore.Loaded l = store.load(cfg.types);
         for (Monitor m : l.monitors()) register(m);
         nextId = l.nextId();
+        mapFiles.load(l.released(), mapIdsInUse());
         for (Monitor m : byId.values()) spawn(m);
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1, 1);
         log.info("Loaded " + byId.size() + " monitor(s)");
@@ -163,7 +166,7 @@ public final class MonitorManager {
         if (task != null) task.cancel();
         pool.shutdownNow();
         for (Monitor m : byId.values()) despawn(m);
-        store.saveNowAndClose(store.serialise(byId.values(), nextId));
+        store.saveNowAndClose(store.serialise(byId.values(), nextId, mapFiles.released()));
     }
 
     public void reload(MonitorConfig cfg) {
@@ -247,11 +250,37 @@ public final class MonitorManager {
         return new Placed(PlaceResult.OK, m);
     }
 
+    private java.util.Set<Integer> mapIdsInUse() {
+        java.util.Set<Integer> ids = new java.util.HashSet<>();
+        for (Monitor m : byId.values()) for (int id : m.mapIds) if (id >= 0) ids.add(id);
+        return ids;
+    }
+
+    /** After a world save: the server may have written a released map again; delete it (next tick). */
+    void afterWorldSave() {
+        if (mapFiles.released().isEmpty()) return;
+        Bukkit.getScheduler().runTask(plugin, mapFiles::sweep);
+    }
+
+    /** Map files from older versions that look like CCTV screens and that no monitor uses. */
+    public List<Integer> orphanMaps() {
+        return mapFiles.orphans(mapIdsInUse());
+    }
+
+    /** Deletes those files; returns how many were deleted. */
+    public int deleteOrphanMaps(List<Integer> ids) {
+        int n = mapFiles.deleteOrphans(ids);
+        dirty = true;
+        return n;
+    }
+
     public boolean remove(String id) {
         Monitor m = byId.remove(id.toLowerCase(Locale.ROOT));
         if (m == null) return false;
         despawn(m);
         unindex(m);
+        mapFiles.release(m.mapIds);
+        if (m.views != null) java.util.Arrays.fill(m.views, null);
         World w = m.bukkitWorld();
         if (w != null && m.type.mount() == MonitorConfig.Mount.DESK) {
             Block b = w.getBlockAt(m.bx, m.by, m.bz);
@@ -444,6 +473,7 @@ public final class MonitorManager {
             if (v == null) {
                 v = Bukkit.createMap(w);
                 m.mapIds[t] = v.getId();
+                mapFiles.reuse(v.getId());
                 dirty = true;
             }
             for (MapRenderer r : List.copyOf(v.getRenderers())) v.removeRenderer(r);
@@ -534,7 +564,7 @@ public final class MonitorManager {
             cache.sweep(tick);
             if (dirty) {
                 dirty = false;
-                store.saveAsync(store.serialise(byId.values(), nextId));
+                store.saveAsync(store.serialise(byId.values(), nextId, mapFiles.released()));
             }
         }
         boolean watchersDue = tick % 10 == 0;

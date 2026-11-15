@@ -42,6 +42,11 @@ public final class MonitorListener implements Listener {
         if (e.getHand() == EquipmentSlot.HAND) monitors.swung(e.getPlayer().getUniqueId());
     }
 
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onWorldSave(org.bukkit.event.world.WorldSaveEvent e) {
+        if (e.getWorld().equals(org.bukkit.Bukkit.getWorlds().getFirst())) monitors.afterWorldSave();
+    }
+
     @EventHandler
     public void onChunkLoad(ChunkLoadEvent e) {
         monitors.onChunkLoad(e.getChunk());

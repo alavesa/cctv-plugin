@@ -34,6 +34,7 @@ public final class CctvPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        migratePackDelivery();
         if (!new java.io.File(getDataFolder(), "models/example_ptz.bbmodel").exists()) {
             saveResource("models/example_ptz.bbmodel", false);
         }
@@ -91,6 +92,22 @@ public final class CctvPlugin extends JavaPlugin {
         if (cameras != null) cameras.shutdown();
         if (packs != null) packs.stop();
         getServer().getServicesManager().unregisterAll(this);
+    }
+
+    /**
+     * 0.7: configs written by 0.1-0.6 say pack.delivery: http on port 8164, which players behind a firewall never
+     * reach (no camera looks, no HUD). An untouched default is switched to auto (served on the Minecraft port) once.
+     */
+    private void migratePackDelivery() {
+        var c = getConfig();
+        if ("http".equalsIgnoreCase(c.getString("pack.delivery")) && c.getInt("pack.http.port", 8164) == 8164
+                && !c.getBoolean("pack.delivery-migrated", false)) {
+            c.set("pack.delivery", "auto");
+            c.set("pack.delivery-migrated", true);
+            saveConfig();
+            getLogger().info("pack.delivery: http -> auto: the CCTV pack is now served on the Minecraft port. "
+                    + "Set pack.delivery: http to go back to port 8164.");
+        }
     }
 
     /** /cctv reload: config.yml (types, settings, messages, pack). cameras.yml stays authoritative in memory. */

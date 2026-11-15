@@ -86,8 +86,14 @@ next working camera in the group (`view.on-camera-lost`).
 
 ### Effects and the pack
 
-- The pack is sent as an **additional** pack (`pack.delivery: http`, built-in server on port 8164), so your
-  server pack stays. Use `url` to host `plugins/CCTV/cctv-pack.zip` yourself, or `none` if you merged it.
+- The pack is sent as an **additional** pack, so your server pack stays. Since 0.7.0 it is served on the Minecraft
+  port itself (`pack.delivery: auto` / `same-port`): nothing to open in a firewall (not behind Velocity/Bungee).
+  `http` uses the built-in server on port 8164 instead - players must reach that port, otherwise nobody gets the pack
+  and camera looks and the HUD never show. 0.1-0.6 configs with the untouched default `http` on 8164 are switched to
+  `auto` once. Use `url` to host `plugins/CCTV/cctv-pack.zip` yourself, or `none` if you merged it. Several plugins
+  can share the Minecraft port (SuperbVehicles 0.7+, Lighting 0.2+): each answers only its own download path.
+- With SuperbVehicles 0.7+ installed, its HUD pack replaces the same `core/text` shader; it carries CCTV's hooks and
+  include files, so both HUDs work whichever pack is on top.
 - Effects are sent only once the client reports the CCTV pack loaded. Otherwise the feed works without them and
   the player is told.
 - `effects.backend: auto` uses Paper's `Player.postEffects()`. It only ever adds or removes `cctv:` effects, never

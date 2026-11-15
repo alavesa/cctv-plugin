@@ -147,7 +147,7 @@ public final class CctvConfig {
         weakSignalBelow = c.getDouble("effects.weak-signal-below", 0.5);
         criticalSignalBelow = c.getDouble("effects.critical-signal-below", 0.25);
 
-        packDelivery = c.getString("pack.delivery", "http").toLowerCase(Locale.ROOT);
+        packDelivery = c.getString("pack.delivery", "auto").toLowerCase(Locale.ROOT);
         packHttpPort = c.getInt("pack.http.port", 8164);
         packHttpBind = c.getString("pack.http.bind", "0.0.0.0");
         packPublicHost = c.getString("pack.http.public-host", "");

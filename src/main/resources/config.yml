@@ -112,9 +112,10 @@ effects:
   critical-signal-below: 0.25
 
 pack:
-  # http: built-in web server on pack.http.port | url: you host plugins/CCTV/cctv-pack.zip, set pack.url |
-  # none: you merged the CCTV pack into another pack (see docs/MERGE.md)
-  delivery: http
+  # auto: same-port, else http | same-port: served on the Minecraft port (no extra port to open; not behind
+  # Velocity/Bungee) | http: built-in web server on pack.http.port (players must reach that port) |
+  # url: you host plugins/CCTV/cctv-pack.zip, set pack.url | none: you merged the CCTV pack into another pack (docs/MERGE.md)
+  delivery: auto
   http:
     port: 8164
     bind: "0.0.0.0"

@@ -110,6 +110,7 @@ next working camera in the group (`view.on-camera-lost`).
 | `cctv.monitor.use` | true | click a monitor to open its camera |
 | `cctv.terminal.place`, `cctv.terminal.pickup` | op | terminals |
 | `cctv.terminal.use` | true | use terminals (their clearance is checked too) |
+| `cctv.control.anywhere` | op | turn PTZ cameras, zoom and switch from anywhere. Everyone else gets these controls only when they open the camera at a security terminal; from a monitor, `/cctv view` or `/cctv browse` they can watch and leave (HUD: VIEW ONLY) |
 | `cctv.alert.receive` | op | get alerts in chat without viewing that network |
 | `cctv.alert.exempt`, `cctv.zone.exempt.<zone>` | false | never trigger alerts (everywhere / in one zone) |
 

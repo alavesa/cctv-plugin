@@ -79,6 +79,12 @@ public interface CctvApi {
      */
     boolean startViewing(Player player, String cameraId);
 
+    /**
+     * As {@link #startViewing(Player, String)}; {@code controls} lets the viewer pan/tilt, zoom and switch cameras
+     * like at a security terminal. Without it only players with {@code cctv.control.anywhere} get the controls.
+     */
+    boolean startViewing(Player player, String cameraId, boolean controls);
+
     /** Ends the player's viewing session. @return false if they weren't viewing */
     boolean stopViewing(Player player);
 

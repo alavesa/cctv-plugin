@@ -275,7 +275,7 @@ public final class TerminalManager implements Listener {
         }
         if (gui == null) return;
         p.playSound(p.getLocation(), "minecraft:block.note_block.hat", 0.6f, 1.8f);
-        new BrowserMenu(gui, p, false, t.group).open();
+        new BrowserMenu(gui, p, false, t.group, true).open();
     }
 
     private void pickup(Player p, Terminal t) {

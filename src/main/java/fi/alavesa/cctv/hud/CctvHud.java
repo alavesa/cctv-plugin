@@ -155,7 +155,7 @@ public final class CctvHud implements ViewHud {
 
         cameraList(t, c, w);
 
-        if (s.age() < cfg.helpSeconds * 20L) t.center(0, 9, help(c), GREY, SCANLINES);
+        if (s.age() < cfg.helpSeconds * 20L) t.center(0, 9, s.controls() ? help(c) : "VIEW ONLY  SHIFT EXIT", GREY, SCANLINES);
         t.left(-w, 11, "NET " + trim(c.group(), 14), GREY, TEXT_FX);
         if (s.zoom() > 1.01f) t.right(w, 11, Math.round(s.zoom()) + "X", AMBER, TEXT_FX);
         t.left(-w, 12, "SIG", GREY, TEXT_FX);

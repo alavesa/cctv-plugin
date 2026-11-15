@@ -25,6 +25,10 @@ public final class ViewSession {
     @Nullable Entity body;
     /** the Mannequin double's id: entity objects can be replaced, the id can't */
     java.util.@Nullable UUID bodyId;
+    /** 26.2: the client-only mob this viewer's client spectates for the camera look */
+    @Nullable FakeAnchor fake;
+    /** may pan/tilt, zoom and switch: opened from a security terminal, or cctv.control.anywhere */
+    boolean controls;
     /** FancyNpcs body double (NPC name), when that is used instead of a Mannequin */
     @Nullable String npcBody;
     long bodyChunk;
@@ -73,6 +77,11 @@ public final class ViewSession {
 
     public UUID player() {
         return player;
+    }
+
+    /** True if this viewer may pan/tilt, zoom and switch (security terminal, or cctv.control.anywhere). */
+    public boolean controls() {
+        return controls;
     }
 
     public long age() {

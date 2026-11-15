@@ -106,6 +106,7 @@ public final class ViewManager implements Listener, ViewBridge {
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1, 1);
         // FancyNpcs may fire its interact event off the main thread; hop back before touching sessions
         NpcBody.bind(plugin, (attacker, npc) -> Bukkit.getScheduler().runTask(plugin, () -> npcHit(attacker, npc)));
+        if (effects.name().equals("mob")) FakeAnchor.bind(plugin.getLogger());
         // players online during a plugin (re)load may carry a restore record from a crash
         for (Player p : Bukkit.getOnlinePlayers()) restoreFromRecord(p);
     }
@@ -161,9 +162,20 @@ public final class ViewManager implements Listener, ViewBridge {
 
     @Override
     public boolean start(Player p, Camera c) {
+        return start(p, c, false);
+    }
+
+    /**
+     * Only viewers who opened the camera at a security terminal (or have cctv.control.anywhere, ops by default) may
+     * turn PTZ cameras, zoom and switch; everyone else watches and can only leave.
+     */
+    @Override
+    public boolean start(Player p, Camera c, boolean controls) {
+        boolean control = controls || p.hasPermission("cctv.control.anywhere");
         ViewSession existing = sessions.get(p.getUniqueId());
         if (existing != null) {
             if (existing.ending()) return false;
+            existing.controls = control;
             return switchTo(existing, p, c, true);
         }
         if (!c.state().viewable()) {
@@ -189,6 +201,7 @@ public final class ViewManager implements Listener, ViewBridge {
         p.leaveVehicle();
         ViewSession s = new ViewSession(p.getUniqueId(), c, p.getLocation(), p.getGameMode(), p.getAllowFlight(),
                 p.isFlying());
+        s.controls = control;
         writeRecord(p, s);
         sessions.put(p.getUniqueId(), s);
         s.fullEffects = !cfg.requirePackForEffects || packs.loaded(p);
@@ -196,7 +209,7 @@ public final class ViewManager implements Listener, ViewBridge {
         if (effects.appliesEffects() && !s.fullEffects) msg(p, "view-no-pack");
 
         if (cfg.bodyDouble) spawnBody(s, p);
-        s.anchor = spawnAnchor(c, p);
+        s.anchor = spawnAnchor(s, c, p);
         s.internal = true;
         try {
             p.setGameMode(GameMode.SPECTATOR);
@@ -295,7 +308,9 @@ public final class ViewManager implements Listener, ViewBridge {
                 continue;
             }
             if (s.anchor == null || !s.anchor.isValid()) {
-                s.anchor = spawnAnchor(c, p);
+                if (s.fake != null) s.fake.remove(p);
+                s.fake = null;
+                s.anchor = spawnAnchor(s, c, p);
                 s.attachIn = cfg.attachDelayTicks;
             }
             if (s.attachIn > 0 && --s.attachIn == 0) attach(s, p);
@@ -303,7 +318,7 @@ public final class ViewManager implements Listener, ViewBridge {
 
             if (s.transientTicks > 0 && --s.transientTicks == 0) s.effectsDirty = true;
             if (s.attachIn == 0) steer(s, c);
-            followCamera(s, c);
+            followCamera(s, c, p);
             if (s.effectsDirty) applyEffects(s, p);
             hud(s).tick(s, p);
         }
@@ -312,7 +327,7 @@ public final class ViewManager implements Listener, ViewBridge {
     /** Held A/D/W/S move the PTZ target a little ahead of the motor; releasing stops it where it is. */
     private void steer(ViewSession s, Camera c) {
         Input in = s.input;
-        if (!c.type().ptz() || in == null) return;
+        if (!c.type().ptz() || in == null || !s.controls) return;
         int dx = in.isSprint() ? 0 : (in.isRight() ? 1 : 0) - (in.isLeft() ? 1 : 0);
         int dy = (in.isBackward() ? 1 : 0) - (in.isForward() ? 1 : 0);
         if (dx != 0 || dy != 0) {
@@ -325,9 +340,10 @@ public final class ViewManager implements Listener, ViewBridge {
         }
     }
 
-    private void followCamera(ViewSession s, Camera c) {
+    private void followCamera(ViewSession s, Camera c, Player p) {
         Entity a = s.anchor;
         if (a == null) return;
+        if (s.fake != null && s.attachIn == 0) s.fake.move(p, lensPose(s, c));
         float yaw = c.yaw(), pitch = c.pitch();
         Location want = anchorAt(c, s.zoom());
         if (a instanceof LivingEntity le) want.subtract(0, le.getEyeHeight(), 0);
@@ -374,6 +390,16 @@ public final class ViewManager implements Listener, ViewBridge {
         } finally {
             s.internal = false;
         }
+        // 26.2 look: this client spectates its own fake mob; the server keeps following the display anchor
+        if (s.fake != null) s.fake.show(p, lensPose(s, s.camera));
+    }
+
+    /** The lens position for the current zoom, with the camera's rotation. */
+    private Location lensPose(ViewSession s, Camera c) {
+        Location l = anchorAt(c, s.zoom());
+        l.setYaw(c.yaw());
+        l.setPitch(c.pitch());
+        return l;
     }
 
     // ------------------------------------------------------------------ controls
@@ -389,7 +415,7 @@ public final class ViewManager implements Listener, ViewBridge {
             end(s, Reason.EXIT, cfg.exitTicks);
             return;
         }
-        if (s.attachIn > 0) return;
+        if (s.attachIn > 0 || !s.controls) return;
         Camera c = s.camera;
         if (rising(before, now, Input::isJump) && c.type().zoomLevels().size() > 1) {
             setZoomIndex(s, e.getPlayer(), (s.zoomIndex + 1) % c.type().zoomLevels().size());
@@ -402,7 +428,7 @@ public final class ViewManager implements Listener, ViewBridge {
         s.zoomIndex = Math.clamp(index, 0, s.camera.type().zoomLevels().size() - 1);
         s.effectsDirty = true;
         hud(s).switched(s, p);
-        followCamera(s, s.camera);
+        followCamera(s, s.camera, p);
     }
 
     /** Sets a viewer's zoom step (0 = 1x) on their current camera. @return false if they aren't viewing */
@@ -444,11 +470,13 @@ public final class ViewManager implements Listener, ViewBridge {
         }
         if (to.bukkitWorld() == null || !new CameraSwitchEvent(p, s.camera, to).callEvent()) return false;
         Entity old = s.anchor;
+        FakeAnchor oldFake = s.fake;
+        s.fake = null;
         for (Entity part : cameras.modelEntities(s.camera)) p.showEntity(plugin, part);
         s.camera = to;
         s.zoomIndex = 0;
         s.ptzHeld = false;
-        s.anchor = spawnAnchor(to, p);
+        s.anchor = spawnAnchor(s, to, p);
         s.internal = true;
         try {
             p.setSpectatorTarget(null);
@@ -456,6 +484,7 @@ public final class ViewManager implements Listener, ViewBridge {
         } finally {
             s.internal = false;
         }
+        if (oldFake != null) oldFake.remove(p);
         if (old != null) old.remove();
         s.attachIn = cfg.attachDelayTicks;
         transition(s, cfg.transitionTicks);
@@ -511,6 +540,7 @@ public final class ViewManager implements Listener, ViewBridge {
             s.internal = true;
             try {
                 if (p.getGameMode() == GameMode.SPECTATOR) p.setSpectatorTarget(null);
+                if (s.fake != null) s.fake.remove(p);
                 if (s.restoreMode) p.setGameMode(s.mode);
                 p.setAllowFlight(s.allowFlight);
                 p.setFlying(s.allowFlight && s.flying);
@@ -578,11 +608,16 @@ public final class ViewManager implements Listener, ViewBridge {
      * Item display by default (no model, so nothing renders). With effects.backend: mob, a creeper / spider /
      * enderman per the type's fallback-anchor, so the vanilla spectated-entity shader supplies the look.
      */
-    private Entity spawnAnchor(Camera c, Player viewer) {
+    private Entity spawnAnchor(ViewSession s, Camera c, Player viewer) {
         Location eye = anchorEye(c);
         World w = eye.getWorld();
         Class<? extends LivingEntity> mob = effects.name().equals("mob")
                 ? mobClass(c.type().fallbackAnchor(), c.type().look()) : null;
+        if (mob != null && FakeAnchor.available()) {
+            // client-side mob for the look (works on peaceful and in no-mob regions); a display anchor for the server
+            s.fake = FakeAnchor.of(mob, w, plugin.getLogger());
+            if (s.fake != null) mob = null;
+        }
         if (mob != null && w.getDifficulty() == org.bukkit.Difficulty.PEACEFUL
                 && org.bukkit.entity.Monster.class.isAssignableFrom(mob)) {
             // peaceful refuses to spawn monsters (and removes them every tick): view without the mob-shader look

@@ -523,8 +523,13 @@ public final class CameraManager implements CctvApi {
 
     @Override
     public boolean startViewing(Player player, String cameraId) {
+        return startViewing(player, cameraId, false);
+    }
+
+    @Override
+    public boolean startViewing(Player player, String cameraId, boolean controls) {
         Camera c = get(cameraId);
-        return c != null && views != null && views.start(player, c);
+        return c != null && views != null && views.start(player, c, controls);
     }
 
     @Override

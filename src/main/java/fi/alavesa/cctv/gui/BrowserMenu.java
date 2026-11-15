@@ -30,13 +30,20 @@ public final class BrowserMenu extends Menu {
     private final GuiContext ctx;
     private final boolean admin;
     private final @Nullable String lockedGroup;
+    /** opened at a security terminal: cameras watched from here can be controlled */
+    private final boolean terminal;
     private @Nullable String group;
     private Filter filter = Filter.ALL;
     private String search = "";
     private int page;
 
     public BrowserMenu(GuiContext ctx, Player viewer, boolean admin, @Nullable String lockedGroup) {
+        this(ctx, viewer, admin, lockedGroup, false);
+    }
+
+    public BrowserMenu(GuiContext ctx, Player viewer, boolean admin, @Nullable String lockedGroup, boolean terminal) {
         super(viewer);
+        this.terminal = terminal;
         this.ctx = ctx;
         this.admin = admin;
         this.lockedGroup = lockedGroup;
@@ -184,6 +191,6 @@ public final class BrowserMenu extends Menu {
             return;
         }
         viewer.closeInventory();
-        ctx.cameras().startViewing(viewer, c.id());
+        ctx.cameras().startViewing(viewer, c.id(), terminal);
     }
 }

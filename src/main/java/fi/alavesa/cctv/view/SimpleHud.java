@@ -52,7 +52,7 @@ final class SimpleHud implements ViewHud {
 
     private void show(ViewSession s, Player p) {
         if (s.ending()) return;
-        Component line = s.age() < helpTicks ? help(s.camera()) : info(s);
+        Component line = s.age() < helpTicks ? (s.controls() ? help(s.camera()) : viewOnly()) : info(s);
         p.showTitle(Title.title(Component.empty(), line, TIMES));
     }
 
@@ -69,6 +69,11 @@ final class SimpleHud implements ViewHud {
                 .append(s.zoom() > 1.01f ? Component.text("  " + Math.round(s.zoom()) + "x", NamedTextColor.YELLOW)
                         : Component.empty())
                 .build();
+    }
+
+    private static Component viewOnly() {
+        return Component.text("View only  ", NamedTextColor.GRAY).append(Component.keybind("key.sneak",
+                NamedTextColor.YELLOW)).append(Component.text(" exit", NamedTextColor.GRAY));
     }
 
     private static Component help(Camera c) {

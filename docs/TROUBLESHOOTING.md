@@ -111,12 +111,18 @@ the player needs `cctv.clearance.<n>` for that level or higher (or `cctv.clearan
 Server: anything with `[CCTV]`. Client: `logs/latest.log` lines about `cctv:` (missing files, shader errors, pack
 errors). Include both, plus `/cctv pack` and `/cctv perf` output, when reporting a problem.
 
-## 26.2: "World ... is on peaceful difficulty" / the camera look is missing
+## 26.2: the camera look (standard / night vision / thermal) is missing
 
-On 26.2, the camera look (standard, night vision, thermal) comes from an invisible creeper, spider or enderman that
-the viewer spectates. Peaceful difficulty doesn't allow monsters, and a region plugin that denies mob spawning
-cancels them too. CCTV then shows the camera without the look and logs a warning. Use easy or higher difficulty,
-allow the spawn in that region, or run 26.3, where the look comes from server post effects.
+On 26.2 the look comes from the client spectating a creeper, spider or enderman: the pack turns their vanilla
+spectator shaders into the CCTV looks. Since 0.5.1 that mob exists only on the viewer's client (log line on start:
+`26.2 camera looks: client-side anchors`). Peaceful difficulty, WorldGuard-style "deny mob spawning" regions and
+anti-mob plugins can't block it. On peaceful the viewer's client is told "easy" while in a camera (otherwise the
+client itself refuses to create the mob) and gets the real difficulty back on exit; the server stays on peaceful.
+
+If the log instead says `Client-side camera anchors unavailable`, real mobs are used as before. Then peaceful and
+no-mob regions do block the look (warning: `World ... is on peaceful difficulty` or `A plugin cancelled the ...
+camera anchor`). Also check that the player has the pack loaded (`/cctv pack`), and that they don't use a shader
+mod (Iris/OptiFine shaders replace vanilla post effects).
 
 ## A copy of the player stays after leaving the camera
 

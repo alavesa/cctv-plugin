@@ -9,6 +9,9 @@ public interface ViewBridge {
 
     boolean start(Player player, Camera camera);
 
+    /** @param controls the viewer may pan/tilt, zoom and switch (a security terminal) */
+    boolean start(Player player, Camera camera, boolean controls);
+
     boolean stop(Player player);
 
     Optional<CameraView> viewing(Player player);
